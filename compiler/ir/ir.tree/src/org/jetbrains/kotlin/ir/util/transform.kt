@@ -16,8 +16,8 @@
 
 package org.jetbrains.kotlin.ir.util
 
+import org.jetbrains.kotlin.ir.IrAbstractElement
 import org.jetbrains.kotlin.ir.IrElement
-import org.jetbrains.kotlin.ir.IrElementBase
 import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationContainer
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
@@ -30,9 +30,9 @@ inline fun <reified T : IrElement> MutableList<T>.transformInPlace(transformatio
 
 fun <T : IrElement, D> MutableList<T>.transformInPlace(transformer: IrElementTransformer<D>, data: D) {
     for (i in 0 until size) {
-        // Cast to IrElementBase to avoid casting to interface and invokeinterface, both of which are slow.
+        // Cast to IrAbstractElement to avoid casting to interface and invokeinterface, both of which are slow.
         @Suppress("UNCHECKED_CAST")
-        set(i, (get(i) as IrElementBase).transform(transformer, data) as T)
+        set(i, (get(i) as IrAbstractElement).transform(transformer, data) as T)
     }
 }
 

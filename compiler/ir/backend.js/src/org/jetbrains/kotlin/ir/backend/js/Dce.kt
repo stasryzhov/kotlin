@@ -365,8 +365,8 @@ fun usefulDeclarations(
                     expression.symbol.owner.enqueue("raw function access")
                 }
 
-                override fun visitVariableAccess(expression: IrValueAccessExpression) {
-                    super.visitVariableAccess(expression)
+                override fun visitValueAccess(expression: IrValueAccessExpression) {
+                    super.visitValueAccess(expression)
 
                     expression.symbol.owner.enqueue("variable access")
                 }
