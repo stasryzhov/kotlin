@@ -85,7 +85,7 @@ object KotlinToJVMBytecodeCompiler {
         if (projectConfiguration.getBoolean(CommonConfigurationKeys.USE_FIR)) {
             val extendedAnalysisMode = projectConfiguration.getBoolean(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS)
             val projectEnvironment =
-                PsiBasedProjectEnvironment(
+                VfsBasedProjectEnvironment(
                     environment.project,
                     VirtualFileManager.getInstance().getFileSystem(StandardFileSystems.FILE_PROTOCOL),
                     { environment.createPackagePartProvider(it) }
@@ -138,52 +138,6 @@ object KotlinToJVMBytecodeCompiler {
         }
 
         return writeOutputs(environment.project, projectConfiguration, chunk, outputs, mainClassFqName)
-    }
-
-    internal fun configureSourceRoots(configuration: CompilerConfiguration, chunk: List<Module>, buildFile: File? = null) {
-        for (module in chunk) {
-            val commonSources = getBuildFilePaths(buildFile, module.getCommonSourceFiles()).toSet()
-
-            for (path in getBuildFilePaths(buildFile, module.getSourceFiles())) {
-                configuration.addKotlinSourceRoot(path, isCommon = path in commonSources)
-            }
-        }
-
-        for (module in chunk) {
-            for ((path, packagePrefix) in module.getJavaSourceRoots()) {
-                configuration.addJavaSourceRoot(File(path), packagePrefix)
-            }
-        }
-
-        val isJava9Module = chunk.any { module ->
-            module.getJavaSourceRoots().any { (path, packagePrefix) ->
-                val file = File(path)
-                packagePrefix == null &&
-                        (file.name == PsiJavaModule.MODULE_INFO_FILE ||
-                                (file.isDirectory && file.listFiles().any { it.name == PsiJavaModule.MODULE_INFO_FILE }))
-            }
-        }
-
-        for (module in chunk) {
-            for (classpathRoot in module.getClasspathRoots()) {
-                configuration.add(
-                    CLIConfigurationKeys.CONTENT_ROOTS,
-                    if (isJava9Module) JvmModulePathRoot(File(classpathRoot)) else JvmClasspathRoot(File(classpathRoot))
-                )
-            }
-        }
-
-        for (module in chunk) {
-            val modularJdkRoot = module.modularJdkRoot
-            if (modularJdkRoot != null) {
-                // We use the SDK of the first module in the chunk, which is not always correct because some other module in the chunk
-                // might depend on a different SDK
-                configuration.put(JVMConfigurationKeys.JDK_HOME, File(modularJdkRoot))
-                break
-            }
-        }
-
-        configuration.addAll(JVMConfigurationKeys.MODULES, chunk)
     }
 
     fun compileBunchOfSources(environment: KotlinCoreEnvironment): Boolean {
@@ -403,4 +357,50 @@ object KotlinToJVMBytecodeCompiler {
         ProgressIndicatorAndCompilationCanceledStatus.checkCanceled()
         return state
     }
+}
+
+internal fun CompilerConfiguration.configureSourceRoots(chunk: List<Module>, buildFile: File? = null) {
+    for (module in chunk) {
+        val commonSources = getBuildFilePaths(buildFile, module.getCommonSourceFiles()).toSet()
+
+        for (path in getBuildFilePaths(buildFile, module.getSourceFiles())) {
+            addKotlinSourceRoot(path, isCommon = path in commonSources)
+        }
+    }
+
+    for (module in chunk) {
+        for ((path, packagePrefix) in module.getJavaSourceRoots()) {
+            addJavaSourceRoot(File(path), packagePrefix)
+        }
+    }
+
+    val isJava9Module = chunk.any { module ->
+        module.getJavaSourceRoots().any { (path, packagePrefix) ->
+            val file = File(path)
+            packagePrefix == null &&
+                    (file.name == PsiJavaModule.MODULE_INFO_FILE ||
+                            (file.isDirectory && file.listFiles().any { it.name == PsiJavaModule.MODULE_INFO_FILE }))
+        }
+    }
+
+    for (module in chunk) {
+        for (classpathRoot in module.getClasspathRoots()) {
+            add(
+                CLIConfigurationKeys.CONTENT_ROOTS,
+                if (isJava9Module) JvmModulePathRoot(File(classpathRoot)) else JvmClasspathRoot(File(classpathRoot))
+            )
+        }
+    }
+
+    for (module in chunk) {
+        val modularJdkRoot = module.modularJdkRoot
+        if (modularJdkRoot != null) {
+            // We use the SDK of the first module in the chunk, which is not always correct because some other module in the chunk
+            // might depend on a different SDK
+            put(JVMConfigurationKeys.JDK_HOME, File(modularJdkRoot))
+            break
+        }
+    }
+
+    addAll(JVMConfigurationKeys.MODULES, chunk)
 }
