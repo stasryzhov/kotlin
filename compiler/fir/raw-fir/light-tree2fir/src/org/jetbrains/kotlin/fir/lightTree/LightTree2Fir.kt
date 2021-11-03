@@ -39,6 +39,12 @@ class LightTree2Fir(
             KotlinLightParser.parseLambdaExpression(builder)
             return builder.lightTree
         }
+
+        fun buildLightTree(code: String): FlyweightCapableTreeStructure<LighterASTNode> {
+            val builder = PsiBuilderFactoryImpl().createBuilder(parserDefinition, makeLexer(), code)
+            KotlinLightParser.parse(builder)
+            return builder.lightTree
+        }
     }
 
     fun buildFirFile(path: Path): FirFile {
@@ -50,10 +56,9 @@ class LightTree2Fir(
         return buildFirFile(code, file.name, file.path)
     }
 
-    fun buildLightTree(code: String): FlyweightCapableTreeStructure<LighterASTNode> {
-        val builder = PsiBuilderFactoryImpl().createBuilder(parserDefinition, makeLexer(), code)
-        KotlinLightParser.parse(builder)
-        return builder.lightTree
+    fun buildFirFile(lightTreeKtFile: LightTreeKtFile): FirFile = with(lightTreeKtFile) {
+        DeclarationsConverter(session, scopeProvider, lightTree)
+            .convertFile(lightTree.root, fileName, path)
     }
 
     fun buildFirFile(code: String, fileName: String, path: String?): FirFile {
@@ -63,3 +68,10 @@ class LightTree2Fir(
             .convertFile(lightTree.root, fileName, path)
     }
 }
+
+data class LightTreeKtFile(
+    val lightTree: FlyweightCapableTreeStructure<LighterASTNode>,
+    val fileName: String,
+    val path: String?
+)
+

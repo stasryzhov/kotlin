@@ -5,7 +5,11 @@
 
 package org.jetbrains.kotlin.test.services
 
+import com.intellij.lang.LighterASTNode
 import com.intellij.openapi.project.Project
+import com.intellij.util.diff.FlyweightCapableTreeStructure
+import org.jetbrains.kotlin.fir.lightTree.LightTree2Fir
+import org.jetbrains.kotlin.fir.lightTree.LightTreeKtFile
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.test.model.TestFile
 import org.jetbrains.kotlin.test.util.KtTestUtil
@@ -94,6 +98,20 @@ fun SourceFileProvider.getKtFilesForSourceFiles(testFiles: Collection<TestFile>,
     return testFiles.mapNotNull {
         if (!it.isKtFile) return@mapNotNull null
         it to getKtFileForSourceFile(it, project)
+    }.toMap()
+}
+
+fun SourceFileProvider.getLightTreeKtFileForSourceFile(testFile: TestFile): LightTreeKtFile {
+    val shortName = testFile.name.substringAfterLast('/').substringAfterLast('\\')
+    val file = getRealFileForSourceFile(testFile)
+    val lightTree = LightTree2Fir.buildLightTree(file.readText())
+    return LightTreeKtFile(lightTree, shortName, "/$shortName") // emulating behavior of KtTestUtil.createFile so path looks the same in testdata
+}
+
+fun SourceFileProvider.getLightTreeKtFilesForSourceFiles(testFiles: Collection<TestFile>): Map<TestFile, LightTreeKtFile> {
+    return testFiles.mapNotNull {
+        if (!it.isKtFile) return@mapNotNull null
+        it to getLightTreeKtFileForSourceFile(it)
     }.toMap()
 }
 
