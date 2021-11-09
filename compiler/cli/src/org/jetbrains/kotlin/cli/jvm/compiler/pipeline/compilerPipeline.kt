@@ -40,7 +40,6 @@ import org.jetbrains.kotlin.codegen.CodegenFactory
 import org.jetbrains.kotlin.codegen.state.GenerationState
 import org.jetbrains.kotlin.config.*
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporterFactory
-import org.jetbrains.kotlin.diagnostics.impl.BaseDiagnosticsCollector
 import org.jetbrains.kotlin.fir.DependencyListForCliModule
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.backend.jvm.FirJvmBackendClassResolver
@@ -79,8 +78,7 @@ fun compileModulesUsingFrontendIrAndLaightTree(
     compilerConfiguration: CompilerConfiguration,
     messageCollector: MessageCollector,
     buildFile: File?,
-    chunk: List<Module>,
-    extendedAnalysisMode: Boolean
+    chunk: List<Module>
 ): Boolean {
     require(projectEnvironment is VfsBasedProjectEnvironment) // TODO: abstract away this requirement
     ProgressIndicatorAndCompilationCanceledStatus.checkCanceled()
@@ -109,8 +107,13 @@ fun compileModulesUsingFrontendIrAndLaightTree(
         val diagnosticsReporter = DiagnosticReporterFactory.createReporter()
 
         val (moduleMainClassName, generationState) = compileModule(
-            module, moduleConfiguration, projectEnvironment, commonSources,
-            platformSources, diagnosticsReporter, extendedAnalysisMode,
+            ModuleCompilerInput(
+                TargetId(module),
+                CommonPlatforms.defaultCommonPlatform, commonSources,
+                JvmPlatforms.unspecifiedJvmPlatform, platformSources,
+                moduleConfiguration
+            ),
+            ModuleCompilerEnvironment(projectEnvironment, diagnosticsReporter)
         )
         FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, messageCollector)
         outputs[module] = generationState
@@ -131,27 +134,23 @@ fun compileModulesUsingFrontendIrAndLaightTree(
 }
 
 fun compileModule(
-    module: Module,
-    moduleConfiguration: CompilerConfiguration,
-    projectEnvironment: VfsBasedProjectEnvironment,
-    commonSources: Collection<File>,
-    platformSources: Collection<File>,
-    diagnosticsReporter: BaseDiagnosticsCollector,
-    extendedAnalysisMode: Boolean
-): Pair<FqName?, GenerationState> {
-    var sourcesScope = projectEnvironment.getSearchScopeByIoFiles(platformSources) //!!
+    input: ModuleCompilerInput,
+    environment: ModuleCompilerEnvironment
+): ModuleCompilerOutput {
+    var sourcesScope = environment.projectEnvironment.getSearchScopeByIoFiles(input.platformSources) //!!
     val sessionProvider = FirProjectSessionProvider()
+    val extendedAnalysisMode = input.configuration.getBoolean(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS)
 
     val commonSession = runIf(
-        commonSources.isNotEmpty() && moduleConfiguration.languageVersionSettings.supportsFeature(LanguageFeature.MultiPlatformProjects)
+        input.commonSources.isNotEmpty() && input.configuration.languageVersionSettings.supportsFeature(LanguageFeature.MultiPlatformProjects)
     ) {
-        val commonSourcesScope = projectEnvironment.getSearchScopeByIoFiles(commonSources) //!!
+        val commonSourcesScope = environment.projectEnvironment.getSearchScopeByIoFiles(input.commonSources) //!!
         sourcesScope -= commonSourcesScope
         createSession(
-            "${module.getModuleName()}-common",
-            CommonPlatforms.defaultCommonPlatform,
-            moduleConfiguration,
-            projectEnvironment,
+            "${input.targetId.name}-common",
+            input.commonPlatform,
+            input.configuration,
+            environment.projectEnvironment,
             commonSourcesScope,
             CommonPlatformAnalyzerServices,
             sessionProvider,
@@ -160,10 +159,10 @@ fun compileModule(
     }
 
     val session = createSession(
-        module.getModuleName(),
-        JvmPlatforms.unspecifiedJvmPlatform,
-        moduleConfiguration,
-        projectEnvironment,
+        input.targetId.name,
+        input.platform,
+        input.configuration,
+        environment.projectEnvironment,
         sourcesScope,
         JvmPlatformAnalyzerServices,
         sessionProvider,
@@ -172,56 +171,62 @@ fun compileModule(
         if (commonSession != null) {
             sourceDependsOnDependencies(listOf(commonSession.moduleData))
         }
-        friendDependencies(module.getFriendPaths())
+        friendDependencies(input.configuration[JVMConfigurationKeys.FRIEND_PATHS] ?: emptyList())
     }
 
-    // !!
-    val commonRawFir = commonSession?.buildFirViaLightTree(commonSources)
-    val rawFir = session.buildFirViaLightTree(platformSources)
-
-    commonSession?.apply {
-        val (commonScopeSession, commonFir) = runResolution(commonRawFir!!)
-        runCheckers(commonScopeSession, commonFir, diagnosticsReporter)
-    }
+    // raw fir
+    val commonRawFir = commonSession?.buildFirViaLightTree(input.commonSources)
+    val rawFir = session.buildFirViaLightTree(input.platformSources)
 
     // resolution
+    commonSession?.apply {
+        val (commonScopeSession, commonFir) = runResolution(commonRawFir!!)
+        // TODO: find out what to do with commonFir
+        runCheckers(commonScopeSession, commonFir, environment.diagnosticsReporter)
+    }
+
     val (scopeSession, fir) = session.runResolution(rawFir)
     // checkers
-    session.runCheckers(scopeSession, fir, diagnosticsReporter)
+    session.runCheckers(scopeSession, fir, environment.diagnosticsReporter)
 
-    val mainClassFqName: FqName? = runIf(moduleConfiguration.get(JVMConfigurationKeys.OUTPUT_JAR) != null) {
+    val mainClassFqName: FqName? = runIf(input.configuration.get(JVMConfigurationKeys.OUTPUT_JAR) != null) {
         findMainClass(fir)
     }
 
+    val extensions = JvmGeneratorExtensionsImpl(input.configuration)
+
     // fir2ir
-    val extensions = JvmGeneratorExtensionsImpl(moduleConfiguration)
-    val irGenerationExtensions = projectEnvironment.project.let { IrGenerationExtension.getInstances(it) }
-    val (irModuleFragment, symbolTable, components) = session.convertToIr(scopeSession, fir, extensions, irGenerationExtensions)
+    val irGenerationExtensions = (environment.projectEnvironment as? VfsBasedProjectEnvironment)?.project?.let { IrGenerationExtension.getInstances(it) }
+    val (irModuleFragment, symbolTable, components) = session.convertToIr(scopeSession, fir, extensions, irGenerationExtensions ?: emptyList())
 
     // IR
     val codegenFactory = JvmIrCodegenFactory(
-        moduleConfiguration,
-        moduleConfiguration.get(CLIConfigurationKeys.PHASE_CONFIG),
+        input.configuration,
+        input.configuration.get(CLIConfigurationKeys.PHASE_CONFIG),
         jvmGeneratorExtensions = extensions
     )
     val dummyBindingContext = NoScopeRecordCliBindingTrace().bindingContext
 
     val generationState = GenerationState.Builder(
-        projectEnvironment.project, ClassBuilderFactories.BINARIES,
+        (environment.projectEnvironment as VfsBasedProjectEnvironment).project, ClassBuilderFactories.BINARIES,
         irModuleFragment.descriptor, dummyBindingContext, emptyList()/* !! */,
-        moduleConfiguration
+        input.configuration
     ).codegenFactory(
         codegenFactory
-    ).withModule(
-        module
+    ).targetId(
+        input.targetId
+    ).moduleName(
+        input.targetId.name
+    ).outDirectory(
+        input.configuration[JVMConfigurationKeys.OUTPUT_DIRECTORY]
     ).onIndependentPartCompilationEnd(
-        createOutputFilesFlushingCallbackIfPossible(moduleConfiguration)
+        createOutputFilesFlushingCallbackIfPossible(input.configuration)
     ).isIrBackend(
         true
     ).jvmBackendClassResolver(
         FirJvmBackendClassResolver(components)
     ).diagnosticReporter(
-        diagnosticsReporter
+        environment.diagnosticsReporter
     ).build()
 
     generationState.beforeCompile()
@@ -231,7 +236,7 @@ fun compileModule(
     CodegenFactory.doCheckCancelled(generationState)
     generationState.factory.done()
 
-    return mainClassFqName to generationState
+    return ModuleCompilerOutput(mainClassFqName, generationState)
 }
 
 fun createSession(

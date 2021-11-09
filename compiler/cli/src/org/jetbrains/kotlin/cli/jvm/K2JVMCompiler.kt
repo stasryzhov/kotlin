@@ -153,12 +153,11 @@ class K2JVMCompiler : CLICompiler<K2JVMCompilerArguments>() {
             configuration.configureSourceRoots(chunk, buildFile)
 
             if (configuration.getBoolean(CommonConfigurationKeys.USE_FIR)) {
-                val extendedAnalysisMode = configuration.getBoolean(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS)
                 val projectEnvironment =
                     createProjectEnvironment(configuration, rootDisposable, EnvironmentConfigFiles.JVM_CONFIG_FILES, messageCollector)
 
                 compileModulesUsingFrontendIrAndLaightTree(
-                    projectEnvironment, configuration, messageCollector, buildFile, chunk, extendedAnalysisMode
+                    projectEnvironment, configuration, messageCollector, buildFile, chunk
                 )
             } else {
                 val environment = createCoreEnvironment(
