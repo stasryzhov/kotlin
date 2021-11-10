@@ -3615,6 +3615,36 @@ OBJ_GETTER(Kotlin_native_internal_GC_findCycle, KRef, KRef root) {
 #endif
 }
 
+KLong Kotlin_native_internal_GC_getRegularGCIntervalMicroseconds(KRef) {
+    return 0;
+}
+
+void Kotlin_native_internal_GC_setRegularGCIntervalMicroseconds(KRef, KLong) {}
+
+KLong Kotlin_native_internal_GC_getTargetHeapBytes(KRef) {
+    return 0;
+}
+
+void Kotlin_native_internal_GC_setTargetHeapBytes(KRef, KLong) {}
+
+KDouble Kotlin_native_internal_GC_getTargetHeapUtilization(KRef) {
+    return 1.0;
+}
+
+void Kotlin_native_internal_GC_setTargetHeapUtilization(KRef, KDouble) {}
+
+KLong Kotlin_native_internal_GC_getMaxHeapBytes(KRef) {
+    return -1;
+}
+
+void Kotlin_native_internal_GC_setMaxHeapBytes(KRef, KLong) {}
+
+KLong Kotlin_native_internal_GC_getMinHeapBytes(KRef) {
+    return 0;
+}
+
+void Kotlin_native_internal_GC_setMinHeapBytes(KRef, KLong) {}
+
 RUNTIME_NOTHROW KNativePtr CreateStablePointer(KRef any) {
   return createStablePointer(any);
 }

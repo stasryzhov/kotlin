@@ -371,6 +371,88 @@ extern "C" KBoolean Kotlin_native_internal_GC_getTuneThreshold(ObjHeader*) {
     return mm::GlobalData::Instance().gc().gcSchedulerConfig().autoTune.load();
 }
 
+extern "C" KLong Kotlin_native_internal_GC_getRegularGCIntervalMicroseconds(ObjHeader*) {
+    auto value = mm::GlobalData::Instance().gc().gcSchedulerConfig().regularGcInterval.load();
+    auto valueScalar = std::chrono::microseconds(value).count();
+    auto maxValue = std::numeric_limits<KLong>::max();
+    if (valueScalar > static_cast<decltype(valueScalar)>(maxValue)) {
+        return maxValue;
+    }
+    return static_cast<KLong>(valueScalar);
+}
+
+extern "C" void Kotlin_native_internal_GC_setRegularGCIntervalMicroseconds(ObjHeader*, KLong value) {
+    if (value < 0) {
+        ThrowIllegalArgumentException();
+    }
+    mm::GlobalData::Instance().gc().gcSchedulerConfig().regularGcInterval = std::chrono::microseconds(value);
+}
+
+extern "C" KLong Kotlin_native_internal_GC_getTargetHeapBytes(ObjHeader*) {
+    auto value = mm::GlobalData::Instance().gc().gcSchedulerConfig().targetHeapBytes.load();
+    auto maxValue = std::numeric_limits<KLong>::max();
+    if (value > static_cast<decltype(value)>(maxValue)) {
+        return maxValue;
+    }
+    return static_cast<KLong>(maxValue);
+}
+
+extern "C" void Kotlin_native_internal_GC_setTargetHeapBytes(ObjHeader*, KLong value) {
+    if (value < 0) {
+        ThrowIllegalArgumentException();
+    }
+    mm::GlobalData::Instance().gc().gcSchedulerConfig().targetHeapBytes = value;
+}
+
+extern "C" KDouble Kotlin_native_internal_GC_getTargetHeapUtilization(ObjHeader*) {
+    return mm::GlobalData::Instance().gc().gcSchedulerConfig().targetHeapUtilization.load();
+}
+
+extern "C" void Kotlin_native_internal_GC_setTargetHeapUtilization(ObjHeader*, KDouble value) {
+    if (value <= 0) {
+        ThrowIllegalArgumentException();
+    }
+    mm::GlobalData::Instance().gc().gcSchedulerConfig().targetHeapUtilization = value;
+}
+
+extern "C" KLong Kotlin_native_internal_GC_getMaxHeapBytes(ObjHeader*) {
+    auto value = mm::GlobalData::Instance().gc().gcSchedulerConfig().maxHeapBytes.load();
+    if (value == std::numeric_limits<size_t>::max()) {
+        return -1;
+    }
+    auto maxValue = std::numeric_limits<KLong>::max();
+    if (value > static_cast<decltype(value)>(maxValue)) {
+        return maxValue;
+    }
+    return static_cast<KLong>(maxValue);
+}
+
+extern "C" void Kotlin_native_internal_GC_setMaxHeapBytes(ObjHeader*, KLong value) {
+    if (value == -1) {
+        mm::GlobalData::Instance().gc().gcSchedulerConfig().maxHeapBytes = std::numeric_limits<size_t>::max();
+    }
+    if (value < 0) {
+        ThrowIllegalArgumentException();
+    }
+    mm::GlobalData::Instance().gc().gcSchedulerConfig().maxHeapBytes = value;
+}
+
+extern "C" KLong Kotlin_native_internal_GC_getMinHeapBytes(ObjHeader*) {
+    auto value = mm::GlobalData::Instance().gc().gcSchedulerConfig().minHeapBytes.load();
+    auto maxValue = std::numeric_limits<KLong>::max();
+    if (value > static_cast<decltype(value)>(maxValue)) {
+        return maxValue;
+    }
+    return static_cast<KLong>(maxValue);
+}
+
+extern "C" void Kotlin_native_internal_GC_setMinHeapBytes(ObjHeader*, KLong value) {
+    if (value < 0) {
+        ThrowIllegalArgumentException();
+    }
+    mm::GlobalData::Instance().gc().gcSchedulerConfig().minHeapBytes = value;
+}
+
 extern "C" OBJ_GETTER(Kotlin_native_internal_GC_detectCycles, ObjHeader*) {
     // TODO: Remove when legacy MM is gone.
     RETURN_OBJ(nullptr);

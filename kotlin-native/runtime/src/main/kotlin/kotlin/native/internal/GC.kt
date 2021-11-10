@@ -64,6 +64,8 @@ object GC {
     /**
      * GC threshold, controlling how frequenly GC is activated, and how much time GC
      * takes. Bigger values lead to longer GC pauses, but less GCs.
+     * New MM: usually unused. For the on-safepoints GC scheduler counts
+     *         how many safepoints must the code pass before informing the GC scheduler.
      */
     var threshold: Int
         get() = getThreshold()
@@ -72,6 +74,7 @@ object GC {
     /**
      * GC allocation threshold, controlling how frequenly GC collect cycles, and how much time
      * this process takes. Bigger values lead to longer GC pauses, but less GCs.
+     * New MM: unused.
      */
     var collectCyclesThreshold: Long
         get() = getCollectCyclesThreshold()
@@ -80,6 +83,7 @@ object GC {
     /**
      * GC allocation threshold, controlling how many bytes allocated since last
      * collection will trigger new GC.
+     * New MM: how many bytes a thread can allocate before informing the GC scheduler.
      */
     var thresholdAllocations: Long
         get() = getThresholdAllocations()
@@ -87,6 +91,7 @@ object GC {
 
     /**
      * If GC shall auto-tune thresholds, depending on how much time is spent in collection.
+     * New MM: if true update targetHeapBytes after each collection.
      */
     var autotune: Boolean
         get() = getTuneThreshold()
@@ -95,10 +100,62 @@ object GC {
 
     /**
      * If cyclic collector for atomic references to be deployed.
+     * New MM: unused.
      */
     var cyclicCollectorEnabled: Boolean
         get() = getCyclicCollectorEnabled()
         set(value) = setCyclicCollectorEnabled(value)
+
+    /**
+     * New MM only. Unused with on-safepoints GC scheduler.
+     * When Kotlin code is not allocating enough to trigger GC, the GC scheduler uses timer to drive collection.
+     * This timer induced collection will not happen sooner than regularGCIntervalMicroseconds after the
+     * previous collection (any kind), and not later than 2 * regularGCIntervalMicroseconds.
+     */
+     var regularGCIntervalMicroseconds: Long
+        get() = getRegularGCIntervalMicroseconds()
+        set(value) = setRegularGCIntervalMicroseconds(value)
+
+    /**
+     * New MM only.
+     * Total amount of heap available for Kotlin objects. When Kotlin objects overflow this heap,
+     * the garbage collection is requested. Automatically adjusts when autotune is true:
+     * after each collection the targetHeapBytes is set to heapBytes / targetHeapUtilization and
+     * capped between minHeapBytes and maxHeapBytes, where heapBytes is heap usage after the garbage
+     * is collected.
+     * Note, that if after a collection heapBytes > targetHeapBytes (which may happen if autotune is false,
+     * or maxHeapBytes is set too low), the next collection will be triggered almost immediately.
+     */
+    var targetHeapBytes: Long
+        get() = getTargetHeapBytes()
+        set(value) = setTargetHeapBytes(value)
+
+    /**
+     * New MM only.
+     * How much of the Kotlin heap should be populated.
+     * Only used if autotune is true. See targetHeapBytes for more details.
+     */
+     var targetHeapUtilization: Double
+        get() = getTargetHeapUtilization()
+        set(value) = setTargetHeapUtilization(value)
+
+    /**
+     * New MM only.
+     * The minimum value for targetHeapBytes
+     * Only used if autotune is true. See targetHeapBytes for more details.
+     */
+     var minHeapBytes: Long
+        get() = getMinHeapBytes()
+        set(value) = setMinHeapBytes(value)
+
+    /**
+     * New MM only.
+     * The maximum value for targetHeapBytes. Use -1 for infinity.
+     * Only used if autotune is true. See targetHeapBytes for more details.
+     */
+     var maxHeapBytes: Long
+        get() = getMaxHeapBytes()
+        set(value) = setMaxHeapBytes(value)
 
     /**
      * Detect cyclic references going via atomic references and return list of cycle-inducing objects
@@ -143,4 +200,34 @@ object GC {
 
     @GCUnsafeCall("Kotlin_native_internal_GC_setCyclicCollector")
     private external fun setCyclicCollectorEnabled(value: Boolean)
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_getRegularGCIntervalMicroseconds")
+    private external fun getRegularGCIntervalMicroseconds(): Long
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_setRegularGCIntervalMicroseconds")
+    private external fun setRegularGCIntervalMicroseconds(value: Long)
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_getTargetHeapBytes")
+    private external fun getTargetHeapBytes(): Long
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_setTargetHeapBytes")
+    private external fun setTargetHeapBytes(value: Long)
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_getTargetHeapUtilization")
+    private external fun getTargetHeapUtilization(): Double
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_setTargetHeapUtilization")
+    private external fun setTargetHeapUtilization(value: Double)
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_getMinHeapBytes")
+    private external fun getMinHeapBytes(): Long
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_setMinHeapBytes")
+    private external fun setMinHeapBytes(value: Long)
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_getMaxHeapBytes")
+    private external fun getMaxHeapBytes(): Long
+
+    @GCUnsafeCall("Kotlin_native_internal_GC_setMaxHeapBytes")
+    private external fun setMaxHeapBytes(value: Long)
 }

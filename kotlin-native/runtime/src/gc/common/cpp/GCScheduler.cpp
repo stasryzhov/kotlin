@@ -17,6 +17,64 @@ using namespace kotlin;
 
 namespace {
 
+class HeapGrowthController {
+public:
+    explicit HeapGrowthController(gc::GCSchedulerConfig& config) noexcept : config_(config) {}
+
+    // Called by the mutators.
+    void OnAllocated(size_t allocatedBytes) noexcept { allocatedBytes_ += allocatedBytes; }
+
+    // Called by the GC thread.
+    void OnPerformFullGC() noexcept { allocatedBytes_ = 0; }
+
+    // Called by the GC thread.
+    void UpdateAliveSetBytes(size_t bytes) noexcept {
+        lastAliveSetBytes_ = bytes;
+
+        if (config_.autoTune.load()) {
+            size_t result = bytes / config_.targetHeapUtilization;
+            config_.targetHeapBytes = std::min(std::max(result, config_.minHeapBytes.load()), config_.maxHeapBytes.load());
+        }
+    }
+
+    // Called by the mutators.
+    bool NeedsGC() const noexcept {
+        size_t currentHeap = allocatedBytes_.load() + lastAliveSetBytes_.load();
+        return currentHeap >= config_.targetHeapBytes;
+    }
+
+private:
+    gc::GCSchedulerConfig& config_;
+    // Updated by both the mutators and the GC thread.
+    std::atomic<size_t> allocatedBytes_ = 0;
+    // Updated by the GC thread, read by the mutators.
+    std::atomic<size_t> lastAliveSetBytes_ = 0;
+};
+
+class RegularIntervalPacer {
+public:
+    using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+    using CurrentTime = std::function<TimePoint()>;
+
+    RegularIntervalPacer(gc::GCSchedulerConfig& config, CurrentTime currentTime) noexcept :
+        config_(config), currentTime_(currentTime), lastGC_(currentTime_()) {}
+
+    // Called by the mutators or the timer thread.
+    bool NeedsGC() const noexcept {
+        auto currentTime = currentTime_();
+        return currentTime >= lastGC_.load() + config_.regularGcInterval.load();
+    }
+
+    // Called by the GC thread.
+    void OnPerformFullGC() noexcept { lastGC_ = currentTime_(); }
+
+private:
+    gc::GCSchedulerConfig& config_;
+    CurrentTime currentTime_;
+    // Updated by the GC thread, read by the mutators or the timer thread.
+    std::atomic<TimePoint> lastGC_;
+};
+
 class GCEmptySchedulerData : public gc::GCSchedulerData {
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {}
     void OnPerformFullGC() noexcept override {}
@@ -25,74 +83,66 @@ class GCEmptySchedulerData : public gc::GCSchedulerData {
 
 class GCSchedulerDataWithTimer : public gc::GCSchedulerData {
 public:
-    explicit GCSchedulerDataWithTimer(gc::GCSchedulerConfig& config, std::function<void()> scheduleGC) noexcept :
-        config_(config), scheduleGC_(std::move(scheduleGC)), timer_(std::chrono::microseconds(config_.regularGcIntervalUs), [this]() {
-            OnTimer();
-            return std::chrono::microseconds(config_.regularGcIntervalUs);
+    GCSchedulerDataWithTimer(
+            gc::GCSchedulerConfig& config, std::function<void()> scheduleGC, RegularIntervalPacer::CurrentTime currentTime) noexcept :
+        config_(config),
+        heapGrowthController_(config),
+        regularIntervalPacer_(config, currentTime),
+        scheduleGC_(std::move(scheduleGC)),
+        timer_(config_.regularGcInterval.load(), [this]() {
+            if (regularIntervalPacer_.NeedsGC()) {
+                scheduleGC_();
+            }
+            return config_.regularGcInterval.load();
         }) {}
 
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {
-        size_t allocatedBytes = threadData.allocatedBytes();
-        if (allocatedBytes > config_.allocationThresholdBytes) {
-            RuntimeAssert(static_cast<bool>(scheduleGC_), "scheduleGC_ cannot be empty");
+        heapGrowthController_.OnAllocated(threadData.allocatedBytes());
+        if (heapGrowthController_.NeedsGC()) {
             scheduleGC_();
         }
     }
 
-    void OnPerformFullGC() noexcept override {}
-
-    void UpdateAliveSetBytes(size_t bytes) noexcept override {}
-
-private:
-    void OnTimer() noexcept {
-        auto allThreadsAreNative = []() {
-            auto threadRegistryIter = mm::GlobalData::Instance().threadRegistry().LockForIter();
-            return std::all_of(threadRegistryIter.begin(), threadRegistryIter.end(), [](mm::ThreadData& thread) {
-                return thread.state() == ThreadState::kNative;
-            });
-        }();
-        // Don't run, if kotlin code is not being executed.
-        if (allThreadsAreNative) return;
-
-        // TODO: Probably makes sense to check memory usage of the process.
-        scheduleGC_();
+    void OnPerformFullGC() noexcept override {
+        heapGrowthController_.OnPerformFullGC();
+        regularIntervalPacer_.OnPerformFullGC();
     }
 
-    gc::GCSchedulerConfig& config_;
+    void UpdateAliveSetBytes(size_t bytes) noexcept override { heapGrowthController_.UpdateAliveSetBytes(bytes); }
 
+private:
+    gc::GCSchedulerConfig& config_;
+    HeapGrowthController heapGrowthController_;
+    RegularIntervalPacer regularIntervalPacer_;
     std::function<void()> scheduleGC_;
     RepeatedTimer timer_;
 };
 
-class GCSchedulerDataWithoutTimer : public gc::GCSchedulerData {
+class GCSchedulerDataOnSafepoints : public gc::GCSchedulerData {
 public:
-    using CurrentTimeCallback = std::function<uint64_t()>;
-
-    GCSchedulerDataWithoutTimer(
-            gc::GCSchedulerConfig& config, std::function<void()> scheduleGC, CurrentTimeCallback currentTimeCallbackNs) noexcept :
-        config_(config),
-        currentTimeCallbackNs_(std::move(currentTimeCallbackNs)),
-        timeOfLastGcNs_(currentTimeCallbackNs_()),
-        scheduleGC_(std::move(scheduleGC)) {}
+    GCSchedulerDataOnSafepoints(
+            gc::GCSchedulerConfig& config, std::function<void()> scheduleGC, RegularIntervalPacer::CurrentTime currentTime) noexcept :
+        heapGrowthController_(config), regularIntervalPacer_(config, currentTime), scheduleGC_(std::move(scheduleGC)) {}
 
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {
-        size_t allocatedBytes = threadData.allocatedBytes();
-        if (allocatedBytes > config_.allocationThresholdBytes ||
-            currentTimeCallbackNs_() - timeOfLastGcNs_ >= config_.cooldownThresholdNs) {
-            RuntimeAssert(static_cast<bool>(scheduleGC_), "scheduleGC_ cannot be empty");
+        heapGrowthController_.OnAllocated(threadData.allocatedBytes());
+        if (heapGrowthController_.NeedsGC()) {
+            scheduleGC_();
+        } else if (regularIntervalPacer_.NeedsGC()) {
             scheduleGC_();
         }
     }
 
-    void OnPerformFullGC() noexcept override { timeOfLastGcNs_ = currentTimeCallbackNs_(); }
+    void OnPerformFullGC() noexcept override {
+        heapGrowthController_.OnPerformFullGC();
+        regularIntervalPacer_.OnPerformFullGC();
+    }
 
-    void UpdateAliveSetBytes(size_t bytes) noexcept override {}
+    void UpdateAliveSetBytes(size_t bytes) noexcept override { heapGrowthController_.UpdateAliveSetBytes(bytes); }
 
 private:
-    gc::GCSchedulerConfig& config_;
-    CurrentTimeCallback currentTimeCallbackNs_;
-
-    std::atomic<uint64_t> timeOfLastGcNs_;
+    HeapGrowthController heapGrowthController_;
+    RegularIntervalPacer regularIntervalPacer_;
     std::function<void()> scheduleGC_;
 };
 
@@ -115,44 +165,30 @@ private:
     std::function<void()> scheduleGC_;
 };
 
-KStdUniquePtr<gc::GCSchedulerData> MakeEmptyGCSchedulerData() noexcept {
-    return ::make_unique<GCEmptySchedulerData>();
-}
-
-KStdUniquePtr<gc::GCSchedulerData> MakeGCSchedulerDataWithTimer(
-        gc::GCSchedulerConfig& config, std::function<void()> scheduleGC) noexcept {
-    return ::make_unique<GCSchedulerDataWithTimer>(config, std::move(scheduleGC));
-}
-
-KStdUniquePtr<gc::GCSchedulerData> MakeGCSchedulerDataWithoutTimer(
-        gc::GCSchedulerConfig& config, std::function<void()> scheduleGC, std::function<uint64_t()> currentTimeCallbackNs) noexcept {
-    return ::make_unique<GCSchedulerDataWithoutTimer>(config, std::move(scheduleGC), std::move(currentTimeCallbackNs));
-}
-
-KStdUniquePtr<gc::GCSchedulerData> MakeGCShedulerDataAggressive(gc::GCSchedulerConfig& config, std::function<void()> scheduleGC) noexcept {
-    return ::make_unique<GCSchedulerDataAggressive>(config, std::move(scheduleGC));
-}
-
 } // namespace
 
-KStdUniquePtr<gc::GCSchedulerData> kotlin::gc::MakeGCSchedulerData(SchedulerType type, gc::GCSchedulerConfig& config, std::function<void()> scheduleGC) noexcept {
+KStdUniquePtr<gc::GCSchedulerData> kotlin::gc::internal::MakeGCSchedulerData(
+        SchedulerType type,
+        gc::GCSchedulerConfig& config,
+        std::function<void()> scheduleGC,
+        std::function<std::chrono::time_point<std::chrono::steady_clock>()> currentTime) noexcept {
     switch (type) {
         case SchedulerType::kDisabled:
-            return MakeEmptyGCSchedulerData();
+            return ::make_unique<GCEmptySchedulerData>();
         case SchedulerType::kWithTimer:
-            return MakeGCSchedulerDataWithTimer(config, std::move(scheduleGC));
+            return ::make_unique<GCSchedulerDataWithTimer>(config, std::move(scheduleGC), std::move(currentTime));
         case SchedulerType::kOnSafepoints:
-            return MakeGCSchedulerDataWithoutTimer(config, std::move(scheduleGC), []() { return konan::getTimeNanos(); });
+            return ::make_unique<GCSchedulerDataOnSafepoints>(config, std::move(scheduleGC), std::move(currentTime));
         case SchedulerType::kAggressive:
-            return MakeGCShedulerDataAggressive(config, std::move(scheduleGC));
+            return ::make_unique<GCSchedulerDataAggressive>(config, std::move(scheduleGC));
     }
 }
-
 
 void gc::GCScheduler::SetScheduleGC(std::function<void()> scheduleGC) noexcept {
     RuntimeAssert(static_cast<bool>(scheduleGC), "scheduleGC cannot be empty");
     RuntimeAssert(!static_cast<bool>(scheduleGC_), "scheduleGC must not have been set");
     scheduleGC_ = std::move(scheduleGC);
     RuntimeAssert(gcData_ == nullptr, "gcData_ must not be set prior to scheduleGC call");
-    gcData_ = MakeGCSchedulerData(compiler::getGCSchedulerType(), config_, scheduleGC_);
+    gcData_ = internal::MakeGCSchedulerData(
+            compiler::getGCSchedulerType(), config_, scheduleGC_, []() { return std::chrono::steady_clock::now(); });
 }
