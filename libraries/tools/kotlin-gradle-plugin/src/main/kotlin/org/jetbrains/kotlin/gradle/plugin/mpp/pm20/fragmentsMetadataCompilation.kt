@@ -35,7 +35,7 @@ internal fun configureMetadataResolutionAndBuild(module: KotlinGradleModule) {
     createResolvableMetadataConfigurationForModule(module)
 
     val metadataCompilationRegistry = MetadataCompilationRegistry()
-    project.pm20Extension.metadataCompilationRegistryByModuleId[module.moduleIdentifier] =
+    project.metadataCompilationRegistryByModuleId[module.moduleIdentifier] =
         metadataCompilationRegistry
 
     configureMetadataCompilationsAndCreateRegistry(module, metadataCompilationRegistry)
