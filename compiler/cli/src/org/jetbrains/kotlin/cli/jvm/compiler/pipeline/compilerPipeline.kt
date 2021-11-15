@@ -54,6 +54,7 @@ import org.jetbrains.kotlin.fir.pipeline.runResolution
 import org.jetbrains.kotlin.fir.session.FirSessionFactory
 import org.jetbrains.kotlin.fir.session.environment.AbstractProjectEnvironment
 import org.jetbrains.kotlin.fir.session.environment.AbstractProjectFileSearchScope
+import org.jetbrains.kotlin.javac.JavacWrapper
 import org.jetbrains.kotlin.load.kotlin.MetadataFinderFactory
 import org.jetbrains.kotlin.load.kotlin.PackagePartProvider
 import org.jetbrains.kotlin.load.kotlin.VirtualFileFinderFactory
@@ -88,7 +89,7 @@ fun compileModulesUsingFrontendIrAndLaightTree(
         "ATTENTION!\n This build uses in-dev FIR: \n  -Xuse-fir"
     )
 
-    val outputs = mutableMapOf<Module, GenerationState>()
+    val outputs = mutableListOf<GenerationState>()
     var mainClassFqName: FqName? = null
 
     for (module in chunk) {
@@ -106,37 +107,109 @@ fun compileModulesUsingFrontendIrAndLaightTree(
 
         val diagnosticsReporter = DiagnosticReporterFactory.createReporter()
 
-        val (moduleMainClassName, generationState) = compileModule(
-            ModuleCompilerInput(
-                TargetId(module),
-                CommonPlatforms.defaultCommonPlatform, commonSources,
-                JvmPlatforms.unspecifiedJvmPlatform, platformSources,
-                moduleConfiguration
-            ),
-            ModuleCompilerEnvironment(projectEnvironment, diagnosticsReporter)
+        val compilerInput = ModuleCompilerInput(
+            TargetId(module),
+            CommonPlatforms.defaultCommonPlatform, commonSources,
+            JvmPlatforms.unspecifiedJvmPlatform, platformSources,
+            moduleConfiguration
         )
-        FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, messageCollector)
-        outputs[module] = generationState
-
-        // TODO: consider what to do if many modules contain main class
-        if (mainClassFqName == null) {
-            mainClassFqName = moduleMainClassName
+        val compilerEnvironment = ModuleCompilerEnvironment(projectEnvironment, diagnosticsReporter)
+        val analysisResults = compileModuleToAnalyzedFir(compilerInput, compilerEnvironment)
+        // TODO: consider what to do if many modules has main classes
+        if (mainClassFqName == null && moduleConfiguration.get(JVMConfigurationKeys.OUTPUT_JAR) != null) {
+            mainClassFqName = findMainClass(analysisResults.fir)
         }
+
+        val irInput = convertAnalyzedFirToIr(compilerInput, analysisResults, compilerEnvironment)
+        val codegenOutput = generateCodeFromIr(irInput, compilerEnvironment)
+
+        FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, messageCollector)
+        outputs.add(codegenOutput.generationState)
     }
 
     return writeOutputs(
-        (projectEnvironment as? VfsBasedProjectEnvironment)?.project,
+        projectEnvironment,
         compilerConfiguration,
-        chunk,
         outputs,
         mainClassFqName
     )
 }
 
-fun compileModule(
+fun convertAnalyzedFirToIr(
     input: ModuleCompilerInput,
+    analysisResults: ModuleCompilerAnalyzedOutput,
+    environment: ModuleCompilerEnvironment
+): ModuleCompilerIrBackendInput {
+    val extensions = JvmGeneratorExtensionsImpl(input.configuration)
+
+    // fir2ir
+    val irGenerationExtensions =
+        (environment.projectEnvironment as? VfsBasedProjectEnvironment)?.project?.let { IrGenerationExtension.getInstances(it) }
+    val (irModuleFragment, symbolTable, components) =
+        analysisResults.session.convertToIr(
+            analysisResults.scopeSession, analysisResults.fir, extensions, irGenerationExtensions ?: emptyList()
+        )
+
+    return ModuleCompilerIrBackendInput(
+        input.targetId,
+        input.configuration,
+        extensions,
+        irModuleFragment,
+        symbolTable,
+        components,
+        analysisResults.session
+    )
+}
+
+fun generateCodeFromIr(
+    input: ModuleCompilerIrBackendInput,
     environment: ModuleCompilerEnvironment
 ): ModuleCompilerOutput {
+    // IR
+    val codegenFactory = JvmIrCodegenFactory(
+        input.configuration,
+        input.configuration.get(CLIConfigurationKeys.PHASE_CONFIG),
+        jvmGeneratorExtensions = input.extensions
+    )
+    val dummyBindingContext = NoScopeRecordCliBindingTrace().bindingContext
+
+    val generationState = GenerationState.Builder(
+        (environment.projectEnvironment as VfsBasedProjectEnvironment).project, ClassBuilderFactories.BINARIES,
+        input.irModuleFragment.descriptor, dummyBindingContext, emptyList()/* !! */,
+        input.configuration
+    ).codegenFactory(
+        codegenFactory
+    ).targetId(
+        input.targetId
+    ).moduleName(
+        input.targetId.name
+    ).outDirectory(
+        input.configuration[JVMConfigurationKeys.OUTPUT_DIRECTORY]
+    ).onIndependentPartCompilationEnd(
+        createOutputFilesFlushingCallbackIfPossible(input.configuration)
+    ).isIrBackend(
+        true
+    ).jvmBackendClassResolver(
+        FirJvmBackendClassResolver(input.components)
+    ).diagnosticReporter(
+        environment.diagnosticsReporter
+    ).build()
+
+    generationState.beforeCompile()
+    codegenFactory.generateModuleInFrontendIRMode(
+        generationState, input.irModuleFragment, input.symbolTable, input.extensions,
+        FirJvmBackendExtension(input.firSession, input.components)
+    )
+    CodegenFactory.doCheckCancelled(generationState)
+    generationState.factory.done()
+
+    return ModuleCompilerOutput(generationState)
+}
+
+fun compileModuleToAnalyzedFir(
+    input: ModuleCompilerInput,
+    environment: ModuleCompilerEnvironment
+): ModuleCompilerAnalyzedOutput {
     var sourcesScope = environment.projectEnvironment.getSearchScopeByIoFiles(input.platformSources) //!!
     val sessionProvider = FirProjectSessionProvider()
     val extendedAnalysisMode = input.configuration.getBoolean(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS)
@@ -172,6 +245,7 @@ fun compileModule(
             sourceDependsOnDependencies(listOf(commonSession.moduleData))
         }
         friendDependencies(input.configuration[JVMConfigurationKeys.FRIEND_PATHS] ?: emptyList())
+        sourceFriendsDependencies(input.friendFirModules)
     }
 
     // raw fir
@@ -189,55 +263,42 @@ fun compileModule(
     // checkers
     session.runCheckers(scopeSession, fir, environment.diagnosticsReporter)
 
-    val mainClassFqName: FqName? = runIf(input.configuration.get(JVMConfigurationKeys.OUTPUT_JAR) != null) {
-        findMainClass(fir)
+    return ModuleCompilerAnalyzedOutput(session, scopeSession, fir)
+}
+
+fun writeOutputs(
+    projectEnvironment: AbstractProjectEnvironment,
+    configuration: CompilerConfiguration,
+    outputs: Collection<GenerationState>,
+    mainClassFqName: FqName?
+): Boolean {
+    try {
+        for (state in outputs) {
+            ProgressIndicatorAndCompilationCanceledStatus.checkCanceled()
+            writeOutput(state.configuration, state.factory, mainClassFqName)
+        }
+    } finally {
+        outputs.forEach(GenerationState::destroy)
     }
 
-    val extensions = JvmGeneratorExtensionsImpl(input.configuration)
+    if (configuration.getBoolean(JVMConfigurationKeys.COMPILE_JAVA)) {
+        val singleState = outputs.singleOrNull()
+        if (singleState != null) {
+            return JavacWrapper.getInstance((projectEnvironment as VfsBasedProjectEnvironment).project).use {
+                it.compile(singleState.outDirectory)
+            }
+        } else {
+            configuration.getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY).report(
+                CompilerMessageSeverity.WARNING,
+                "A chunk contains multiple modules (${outputs.joinToString { it.moduleName }}). " +
+                        "-Xuse-javac option couldn't be used to compile java files"
+            )
+        }
+    }
 
-    // fir2ir
-    val irGenerationExtensions = (environment.projectEnvironment as? VfsBasedProjectEnvironment)?.project?.let { IrGenerationExtension.getInstances(it) }
-    val (irModuleFragment, symbolTable, components) = session.convertToIr(scopeSession, fir, extensions, irGenerationExtensions ?: emptyList())
-
-    // IR
-    val codegenFactory = JvmIrCodegenFactory(
-        input.configuration,
-        input.configuration.get(CLIConfigurationKeys.PHASE_CONFIG),
-        jvmGeneratorExtensions = extensions
-    )
-    val dummyBindingContext = NoScopeRecordCliBindingTrace().bindingContext
-
-    val generationState = GenerationState.Builder(
-        (environment.projectEnvironment as VfsBasedProjectEnvironment).project, ClassBuilderFactories.BINARIES,
-        irModuleFragment.descriptor, dummyBindingContext, emptyList()/* !! */,
-        input.configuration
-    ).codegenFactory(
-        codegenFactory
-    ).targetId(
-        input.targetId
-    ).moduleName(
-        input.targetId.name
-    ).outDirectory(
-        input.configuration[JVMConfigurationKeys.OUTPUT_DIRECTORY]
-    ).onIndependentPartCompilationEnd(
-        createOutputFilesFlushingCallbackIfPossible(input.configuration)
-    ).isIrBackend(
-        true
-    ).jvmBackendClassResolver(
-        FirJvmBackendClassResolver(components)
-    ).diagnosticReporter(
-        environment.diagnosticsReporter
-    ).build()
-
-    generationState.beforeCompile()
-    codegenFactory.generateModuleInFrontendIRMode(
-        generationState, irModuleFragment, symbolTable, extensions, FirJvmBackendExtension(session, components)
-    )
-    CodegenFactory.doCheckCancelled(generationState)
-    generationState.factory.done()
-
-    return ModuleCompilerOutput(mainClassFqName, generationState)
+    return true
 }
+
 
 fun createSession(
     name: String,
@@ -405,13 +466,17 @@ fun createProjectEnvironment(
     }
 }
 
-private fun contentRootToVirtualFile(root: JvmContentRoot, locaFileSystem: VirtualFileSystem, jarFileSystem: VirtualFileSystem, messageCollector: MessageCollector): VirtualFile? =
+private fun contentRootToVirtualFile(
+    root: JvmContentRoot, locaFileSystem: VirtualFileSystem, jarFileSystem: VirtualFileSystem, messageCollector: MessageCollector
+): VirtualFile? =
     when (root) {
         // TODO: find out why non-existent location is not reported for JARs, add comment or fix
         is JvmClasspathRoot ->
-            if (root.file.isFile) jarFileSystem.findJarRoot(root.file) else locaFileSystem.findExistingRoot(root, "Classpath entry", messageCollector)
+            if (root.file.isFile) jarFileSystem.findJarRoot(root.file)
+            else locaFileSystem.findExistingRoot(root, "Classpath entry", messageCollector)
         is JvmModulePathRoot ->
-            if (root.file.isFile) jarFileSystem.findJarRoot(root.file) else locaFileSystem.findExistingRoot(root, "Java module root", messageCollector)
+            if (root.file.isFile) jarFileSystem.findJarRoot(root.file)
+            else locaFileSystem.findExistingRoot(root, "Java module root", messageCollector)
         is JavaSourceRoot ->
             locaFileSystem.findExistingRoot(root, "Java source root", messageCollector)
         else ->
@@ -421,7 +486,9 @@ private fun contentRootToVirtualFile(root: JvmContentRoot, locaFileSystem: Virtu
 private fun VirtualFileSystem.findJarRoot(file: File): VirtualFile? =
     findFileByPath("$file${URLUtil.JAR_SEPARATOR}")
 
-private fun VirtualFileSystem.findExistingRoot(root: JvmContentRoot, rootDescription: String, messageCollector: MessageCollector): VirtualFile? {
+private fun VirtualFileSystem.findExistingRoot(
+    root: JvmContentRoot, rootDescription: String, messageCollector: MessageCollector
+): VirtualFile? {
     return findFileByPath(root.file.absolutePath).also {
         if (it == null) {
             messageCollector.report(
