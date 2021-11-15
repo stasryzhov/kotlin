@@ -24,21 +24,19 @@ object DefaultKotlinRuntimeElementsConfigurationInstantiator : KotlinRuntimeElem
         return module.project.configurations.maybeCreate(names.disambiguateName("runtimeElements")).apply {
             isCanBeResolved = false
             isCanBeConsumed = false
+            module.ifMadePublic { isCanBeConsumed = true }
 
             attributes.attribute(Category.CATEGORY_ATTRIBUTE, module.project.objects.named(Category::class.java, Category.LIBRARY))
             attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, module.project.objects.named(Bundling::class.java, Bundling.EXTERNAL))
 
             extendsFrom(dependencies.transitiveApiConfiguration)
             extendsFrom(dependencies.transitiveImplementationConfiguration)
-            module.ifMadePublic {
-                isCanBeConsumed = true
-                setModuleCapability(this, module)
-            }
         }
     }
 }
 
 val DefaultKotlinRuntimeElementsConfigurator = KotlinConfigurationsConfigurator(
     KotlinFragmentPlatformAttributesConfigurator,
+    KotlinFragmentModuleCapabilityConfigurator,
     KotlinFragmentProducerRuntimeUsageAttributesConfigurator
 )
