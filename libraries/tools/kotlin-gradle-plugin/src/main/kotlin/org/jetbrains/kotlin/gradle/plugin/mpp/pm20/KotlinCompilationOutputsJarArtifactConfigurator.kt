@@ -16,10 +16,13 @@ import org.jetbrains.kotlin.gradle.utils.dashSeparatedName
  */
 object KotlinCompilationOutputsJarArtifactConfigurator : KotlinFragmentConfigurationsConfigurator<KotlinGradleVariant> {
     override fun configure(fragment: KotlinGradleVariant, configuration: Configuration) {
-        val jarTask = fragment.project.locateOrRegisterTask<Jar>(fragment.disambiguateName("jar")) {
+        val jarTask = fragment.project.locateOrRegisterTask<Jar>(fragment.outputsJarTaskName) {
             it.from(fragment.compilationOutputs.allOutputs)
             it.archiveClassifier.set(dashSeparatedName(fragment.name, fragment.containingModule.moduleClassifier))
         }
         fragment.project.artifacts.add(configuration.name, jarTask)
     }
 }
+
+internal val KotlinGradleVariant.outputsJarTaskName: String
+    get() = disambiguateName("jar")
