@@ -47,7 +47,7 @@ sealed class NativeBinary(
         get() = compilation.konanTarget
 
     val target: KotlinNativeTarget
-        get() = compilation.target
+        get() = compilation.target as KotlinNativeTarget
 
     val project: Project
         get() = target.project

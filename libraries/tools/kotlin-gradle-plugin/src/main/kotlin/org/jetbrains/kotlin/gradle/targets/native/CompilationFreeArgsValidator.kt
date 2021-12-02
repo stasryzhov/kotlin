@@ -16,7 +16,7 @@ internal object CompilationFreeArgsValidator : AggregateReporter() {
 
     private data class IncorrectArgumentsReport(val compilation: KotlinNativeCompilation, val incorrectArgs: List<String>) {
         val target: KotlinNativeTarget
-            get() = compilation.target
+            get() = compilation.target as KotlinNativeTarget
 
         val project: Project
             get() = target.project

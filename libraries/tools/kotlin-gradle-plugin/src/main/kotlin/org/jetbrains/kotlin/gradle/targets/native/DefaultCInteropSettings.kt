@@ -51,7 +51,7 @@ open class DefaultCInteropSettings @Inject constructor(
         get() = CInteropIdentifier(CInteropIdentifier.Scope.create(compilation), name)
 
     val target: KotlinNativeTarget?
-        get() = (compilation as? KotlinNativeCompilation?)?.target
+        get() = (compilation as? KotlinNativeCompilation?)?.target as KotlinNativeTarget?
 
     override val dependencyConfigurationName: String
         get() = compilation.disambiguateName("${name.capitalize()}CInterop")

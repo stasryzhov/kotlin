@@ -228,7 +228,7 @@ open class KotlinNativeTargetConfigurator<T : KotlinNativeTarget> : AbstractKotl
                     // We cannot add the interop library in an compilation output because in this case
                     // IDE doesn't see this library in module dependencies. So we have to manually add
                     // main interop libraries in dependencies of the default test compilation.
-                    target.compilations.findByName(TEST_COMPILATION_NAME)?.let { testCompilation ->
+                    (target as KotlinNativeTarget).compilations.findByName(TEST_COMPILATION_NAME)?.let { testCompilation ->
                         project.dependencies.add(testCompilation.compileDependencyConfigurationName, interopOutput)
                         testCompilation.cinterops.all {
                             it.dependencyFiles += interopOutput
