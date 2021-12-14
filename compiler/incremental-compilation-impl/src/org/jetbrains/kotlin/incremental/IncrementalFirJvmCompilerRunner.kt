@@ -38,6 +38,10 @@ import org.jetbrains.kotlin.cli.jvm.config.JvmClasspathRoot
 import org.jetbrains.kotlin.cli.jvm.config.JvmModulePathRoot
 import org.jetbrains.kotlin.cli.jvm.config.addJavaSourceRoot
 import org.jetbrains.kotlin.cli.jvm.plugins.PluginCliParser
+import org.jetbrains.kotlin.compilerRunner.MessageCollectorToOutputItemsCollectorAdapter
+import org.jetbrains.kotlin.compilerRunner.OutputItemsCollectorImpl
+import org.jetbrains.kotlin.compilerRunner.SimpleOutputItem
+import org.jetbrains.kotlin.compilerRunner.toGeneratedFile
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.JVMConfigurationKeys
@@ -53,6 +57,7 @@ import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.resolve.providers.impl.FirProviderImpl
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.incremental.multiproject.ModulesApiHistory
+import org.jetbrains.kotlin.incremental.util.BufferingMessageCollector
 import org.jetbrains.kotlin.ir.backend.jvm.serialization.JvmDescriptorMangler
 import org.jetbrains.kotlin.ir.declarations.impl.IrFactoryImpl
 import org.jetbrains.kotlin.ir.util.IrMessageLogger
@@ -95,88 +100,91 @@ class IncrementalFirJvmCompilerRunner(
         classpathAbiSnapshot: Map<String, AbiSnapshot>
     ): ExitCode {
 
-        preBuildHook(args, compilationMode)
-
-        // TODO: probably shoudl be passed along with allKotlinSources
-        // TODO: file path normalization
-        val allCommonSources = args.commonSources?.mapTo(mutableSetOf(), ::File).orEmpty()
-
-        val buildTimeMode: BuildTime
-        val dirtySources = when (compilationMode) {
-            is CompilationMode.Incremental -> {
-                buildTimeMode = BuildTime.INCREMENTAL_ITERATION
-                compilationMode.dirtyFiles.toMutableList()
-            }
-            is CompilationMode.Rebuild -> {
-                buildTimeMode = BuildTime.NON_INCREMENTAL_ITERATION
-                reporter.addAttribute(compilationMode.reason)
-                allKotlinSources.toMutableList()
-            }
-        }
-        // TODO: check possible important modifications of the dirty sources after this point
-        if (dirtySources.isEmpty()) return ExitCode.OK
-
-        val currentBuildInfo = BuildInfo(startTS = System.currentTimeMillis(), classpathAbiSnapshot)
-        val buildDirtyLookupSymbols = HashSet<LookupSymbol>()
-        val buildDirtyFqNames = HashSet<FqName>()
-        val allDirtySources = HashSet<File>()
-
-        // from K2JVMCompiler (~)
-        val moduleName = args.moduleName ?: JvmProtoBufUtil.DEFAULT_MODULE_NAME
-        val targetId = TargetId(moduleName, "java-production") // TODO: get rid of magic constant
-
-        // - configuration
-        val configuration = CompilerConfiguration()
-
-        configuration.put(CLIConfigurationKeys.ORIGINAL_MESSAGE_COLLECTOR_KEY, originalMessageCollector)
-
-        val collector = GroupingMessageCollector(originalMessageCollector, args.allWarningsAsErrors).also {
-            configuration.put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, it)
-        }
-
-        configuration.put(IrMessageLogger.IR_MESSAGE_LOGGER, IrMessageCollector(collector))
-
-        configuration.setupCommonArguments(args) { JvmMetadataVersion(*it) }
-
-        configuration.setupJvmSpecificArguments(args)
-
-        val paths = computeKotlinPaths(collector, args)
-        if (collector.hasErrors()) return ExitCode.COMPILATION_ERROR
-
-        // -- plugins
-        val pluginClasspaths: Iterable<String> = args.pluginClasspaths?.asIterable() ?: emptyList()
-        val pluginOptions = args.pluginOptions?.toMutableList() ?: ArrayList()
-        // TODO: add scripting support when ready in FIR
-        val pluginLoadResult = PluginCliParser.loadPluginsSafe(pluginClasspaths, pluginOptions, configuration)
-        if (pluginLoadResult != ExitCode.OK) return pluginLoadResult
-        // -- /plugins
-
-        configuration.configureExplicitContentRoots(args)
-        configuration.configureStandardLibs(paths, args)
-        configuration.configureAdvancedJvmOptions(args)
-        configuration.configureKlibPaths(args)
-
-        args.destination?.let {
-            val destination = File(it)
-            if (destination.path.endsWith(".jar")) {
-                configuration.put(JVMConfigurationKeys.OUTPUT_JAR, destination)
-            } else {
-                configuration.put(JVMConfigurationKeys.OUTPUT_DIRECTORY, destination)
-            }
-        }
-        configuration.configureBaseRoots(args)
-        configuration.configureSourceRootsFromSources(allKotlinSources, allCommonSources, args.javaPackagePrefix)
-        // - /configuration
+        // outputs collector
+        args.reportOutputFiles = true
+        val outputItemsCollector = OutputItemsCollectorImpl()
+        val bufferingMessageCollector = BufferingMessageCollector()
+        val messageCollectorAdapter = MessageCollectorToOutputItemsCollectorAdapter(bufferingMessageCollector, outputItemsCollector)
+        val collector = GroupingMessageCollector(messageCollectorAdapter, args.allWarningsAsErrors)
 
         var exitCode = ExitCode.OK
         val rootDisposable = Disposer.newDisposable()
 
         try {
+            preBuildHook(args, compilationMode)
+
+            // TODO: probably shoudl be passed along with allKotlinSources
+            // TODO: file path normalization
+            val allCommonSources = args.commonSources?.mapTo(mutableSetOf(), ::File).orEmpty()
+
+            val buildTimeMode: BuildTime
+            val dirtySources = when (compilationMode) {
+                is CompilationMode.Incremental -> {
+                    buildTimeMode = BuildTime.INCREMENTAL_ITERATION
+                    compilationMode.dirtyFiles.toMutableList()
+                }
+                is CompilationMode.Rebuild -> {
+                    buildTimeMode = BuildTime.NON_INCREMENTAL_ITERATION
+                    reporter.addAttribute(compilationMode.reason)
+                    allKotlinSources.toMutableList()
+                }
+            }
+            // TODO: check possible important modifications of the dirty sources after this point
+            if (dirtySources.isEmpty()) return ExitCode.OK
+
+            val currentBuildInfo = BuildInfo(startTS = System.currentTimeMillis(), classpathAbiSnapshot)
+            val buildDirtyLookupSymbols = HashSet<LookupSymbol>()
+            val buildDirtyFqNames = HashSet<FqName>()
+            val allDirtySources = HashSet<File>()
+
+            // from K2JVMCompiler (~)
+            val moduleName = args.moduleName ?: JvmProtoBufUtil.DEFAULT_MODULE_NAME
+            val targetId = TargetId(moduleName, "java-production") // TODO: get rid of magic constant
+
+            // - configuration
+            val configuration = CompilerConfiguration()
+
+            configuration.put(CLIConfigurationKeys.ORIGINAL_MESSAGE_COLLECTOR_KEY, messageCollectorAdapter)
+            configuration.put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, collector)
+            configuration.put(IrMessageLogger.IR_MESSAGE_LOGGER, IrMessageCollector(collector))
+
+            configuration.setupCommonArguments(args) { JvmMetadataVersion(*it) }
+
+            configuration.setupJvmSpecificArguments(args)
+
+            val paths = computeKotlinPaths(collector, args)
+            if (collector.hasErrors()) return ExitCode.COMPILATION_ERROR
+
+            // -- plugins
+            val pluginClasspaths: Iterable<String> = args.pluginClasspaths?.asIterable() ?: emptyList()
+            val pluginOptions = args.pluginOptions?.toMutableList() ?: ArrayList()
+            // TODO: add scripting support when ready in FIR
+            val pluginLoadResult = PluginCliParser.loadPluginsSafe(pluginClasspaths, pluginOptions, configuration)
+            if (pluginLoadResult != ExitCode.OK) return pluginLoadResult
+            // -- /plugins
+
+            configuration.configureExplicitContentRoots(args)
+            configuration.configureStandardLibs(paths, args)
+            configuration.configureAdvancedJvmOptions(args)
+            configuration.configureKlibPaths(args)
+
+            args.destination?.let {
+                val destination = File(it)
+                if (destination.path.endsWith(".jar")) {
+                    configuration.put(JVMConfigurationKeys.OUTPUT_JAR, destination)
+                } else {
+                    configuration.put(JVMConfigurationKeys.OUTPUT_DIRECTORY, destination)
+                }
+            }
+            configuration.configureBaseRoots(args)
+            configuration.configureSourceRootsFromSources(allKotlinSources, allCommonSources, args.javaPackagePrefix)
+            // - /configuration
+
             setIdeaIoUseFallback()
 
             // -AbstractProjectEnvironment-
             val projectEnvironment =
-                createProjectEnvironment(configuration, rootDisposable, EnvironmentConfigFiles.JVM_CONFIG_FILES, originalMessageCollector)
+                createProjectEnvironment(configuration, rootDisposable, EnvironmentConfigFiles.JVM_CONFIG_FILES, messageCollectorAdapter)
 
             // -sources
             val allPlatformSourceFiles = linkedSetOf<File>()
@@ -343,7 +351,7 @@ class IncrementalFirJvmCompilerRunner(
 
             val codegenOutput = generateCodeFromIr(irInput, compilerEnvironment)
 
-            FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, originalMessageCollector)
+            FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, messageCollectorAdapter)
 
             writeOutputs(
                 projectEnvironment,
@@ -351,6 +359,12 @@ class IncrementalFirJvmCompilerRunner(
                 listOf(codegenOutput.generationState),
                 mainClassFqName
             )
+
+            val generatedFiles = outputItemsCollector.outputs.map(SimpleOutputItem::toGeneratedFile)
+            reporter.measure(BuildTime.IC_UPDATE_CACHES) {
+                caches.inputsCache.registerOutputForSourceFiles(generatedFiles)
+                updateIncrementalCache(generatedFiles, caches.platformCache, ChangesCollector(), null)
+            }
 
         } catch (e: CompilationCanceledException) {
             collector.report(CompilerMessageSeverity.INFO, "Compilation was canceled", null)
@@ -364,6 +378,7 @@ class IncrementalFirJvmCompilerRunner(
                 throw e
             }
         } finally {
+            bufferingMessageCollector.flush(originalMessageCollector)
             Disposer.dispose(rootDisposable)
         }
         return exitCode
