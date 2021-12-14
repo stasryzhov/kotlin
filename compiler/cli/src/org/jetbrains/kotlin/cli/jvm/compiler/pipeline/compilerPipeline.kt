@@ -45,6 +45,7 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.backend.jvm.FirJvmBackendClassResolver
 import org.jetbrains.kotlin.fir.backend.jvm.FirJvmBackendExtension
 import org.jetbrains.kotlin.fir.checkers.registerExtendedCommonCheckers
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
 import org.jetbrains.kotlin.fir.java.FirProjectSessionProvider
 import org.jetbrains.kotlin.fir.moduleData
 import org.jetbrains.kotlin.fir.pipeline.buildFirViaLightTree
@@ -329,6 +330,7 @@ fun createSession(
         librariesScope,
         lookupTracker = moduleConfiguration.get(CommonConfigurationKeys.LOOKUP_TRACKER),
         providerAndScopeForIncrementalCompilation,
+        extensionRegistrars = (projectEnvironment as? VfsBasedProjectEnvironment)?.let { FirExtensionRegistrar.getInstances(it.project) } ?: emptyList(),
         dependenciesConfigurator = {
             dependencies(moduleConfiguration.jvmClasspathRoots.map { it.toPath() })
             dependencies(moduleConfiguration.jvmModularRoots.map { it.toPath() })
@@ -467,7 +469,7 @@ fun createProjectEnvironment(
 }
 
 private fun contentRootToVirtualFile(
-    root: JvmContentRoot, locaFileSystem: VirtualFileSystem, jarFileSystem: VirtualFileSystem, messageCollector: MessageCollector
+    root: JvmContentRootBase, locaFileSystem: VirtualFileSystem, jarFileSystem: VirtualFileSystem, messageCollector: MessageCollector
 ): VirtualFile? =
     when (root) {
         // TODO: find out why non-existent location is not reported for JARs, add comment or fix
