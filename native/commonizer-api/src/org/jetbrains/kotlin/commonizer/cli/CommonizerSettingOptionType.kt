@@ -14,3 +14,7 @@ public sealed class CommonizerSettingOptionType<T : Any>(
     description,
     mandatory = false,
 )
+
+public val AdditionalCommonizerSettings: List<CommonizerSettingOptionType<*>> = listOf(
+    PlatformIntegers,
+)

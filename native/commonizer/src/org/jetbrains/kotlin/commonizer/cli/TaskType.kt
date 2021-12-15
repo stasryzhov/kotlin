@@ -31,7 +31,7 @@ internal enum class TaskType(
             ),
             StatsTypeOptionType,
             LogLevelOptionType,
-        ),
+        ) + AdditionalCommonizerSettings,
         ::NativeDistributionCommonize
     ),
 
@@ -54,7 +54,7 @@ internal enum class TaskType(
             DependencyLibrariesOptionType,
             OutputCommonizerTargetsOptionType,
             LogLevelOptionType
-        ),
+        ) + AdditionalCommonizerSettings,
         ::NativeKlibCommonize
     )
     ;
