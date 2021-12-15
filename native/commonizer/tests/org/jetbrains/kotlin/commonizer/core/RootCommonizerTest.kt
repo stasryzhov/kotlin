@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.CommonizerTarget
+import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.LeafCommonizerTarget
 import org.jetbrains.kotlin.commonizer.SharedCommonizerTarget
 import org.jetbrains.kotlin.commonizer.cir.CirRoot
@@ -98,7 +99,7 @@ class RootCommonizerTest : AbstractCommonizerTest<CirRoot, CirRoot>() {
         LeafCommonizerTarget("jvm3").toMock()
     )
 
-    override fun createCommonizer() = RootCommonizer()
+    override fun createCommonizer() = RootCommonizer(DefaultCommonizerSettings)
 
     override fun areEqual(a: CirRoot?, b: CirRoot?) = (a === b) || (a != null && b != null && a.target == b.target)
 

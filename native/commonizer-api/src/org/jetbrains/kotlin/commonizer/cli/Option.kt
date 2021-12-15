@@ -5,10 +5,4 @@
 
 package org.jetbrains.kotlin.commonizer.cli
 
-internal abstract class OptionType<T>(
-    val alias: String,
-    val description: String,
-    val mandatory: Boolean = true
-) {
-    abstract fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<T>
-}
+public class Option<T>(public val type: OptionType<T>, public val value: T)

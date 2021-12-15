@@ -43,7 +43,9 @@ private typealias Supertypes = List<CirType>
 internal class ClassSuperTypeCommonizer(
     private val classifiers: CirKnownClassifiers,
     private val typeCommonizer: TypeCommonizer
-) : SingleInvocationCommonizer<Supertypes> {
+) : AbstractSingleInvocationCommonizer<Supertypes>(
+    typeCommonizer.settings,
+) {
 
     override fun invoke(values: List<Supertypes>): Supertypes {
         if (values.isEmpty()) return emptyList()

@@ -8,12 +8,12 @@ package org.jetbrains.kotlin.commonizer.cli
 import org.jetbrains.kotlin.commonizer.SharedCommonizerTarget
 import org.jetbrains.kotlin.commonizer.parseCommonizerTarget
 
-internal object OutputCommonizerTargetsOptionType : OptionType<Set<SharedCommonizerTarget>>(
+public object OutputCommonizerTargetsOptionType : OptionType<Set<SharedCommonizerTarget>>(
     alias = "output-targets",
     description = "All output targets separated with ';'",
     mandatory = true
 ) {
-    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<Set<SharedCommonizerTarget>> {
+    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<Set<SharedCommonizerTarget>> {
         return try {
             Option(
                 this, rawValue.split(";")

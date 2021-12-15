@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
+import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirAnnotation
 import org.jetbrains.kotlin.commonizer.cir.CirConstantValue
 import org.jetbrains.kotlin.commonizer.cir.CirConstantValue.*
@@ -276,7 +277,7 @@ class AnnotationsCommonizerTest : AbstractCommonizerTest<List<CirAnnotation>, Li
         )
     )
 
-    override fun createCommonizer() = AnnotationsCommonizer()
+    override fun createCommonizer() = AnnotationsCommonizer(DefaultCommonizerSettings)
 }
 
 private fun mockAnnotation(

@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
+import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.Modality.*
 import org.junit.Test
@@ -62,5 +63,5 @@ class ModalityCommonizerTest : AbstractCommonizerTest<Modality, Modality>() {
         OPEN, OPEN, FINAL
     )
 
-    override fun createCommonizer() = ModalityCommonizer()
+    override fun createCommonizer() = ModalityCommonizer(DefaultCommonizerSettings)
 }

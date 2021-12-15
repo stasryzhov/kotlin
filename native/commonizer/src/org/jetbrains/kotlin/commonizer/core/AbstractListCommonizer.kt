@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.CirType
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 
 /**
  * Unlike [Commonizer] which commonizes only single elements, this [AbstractListCommonizer] commonizes lists of elements using
@@ -16,7 +17,8 @@ import org.jetbrains.kotlin.commonizer.cir.CirType
  *   Output: list of [CirType]
  */
 abstract class AbstractListCommonizer<T, R : Any>(
-    private val singleElementCommonizerFactory: (Int) -> Commonizer<T, R?>
+    private val singleElementCommonizerFactory: (Int) -> Commonizer<T, R?>,
+    override val settings: CommonizerSettings,
 ) : Commonizer<List<T>, List<R>?> {
     private var commonizers: Array<Commonizer<T, R?>>? = null
     private var error = false

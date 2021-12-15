@@ -5,12 +5,15 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
+
 /**
  * A wrapper around [Commonizer] that checks that
  * - either all commonized elements are null
  * - or all commonized elements are non-null and can be commonized according to the wrapped commonized
  */
 abstract class AbstractNullableCommonizer<T : Any, R : Any, WT, WR>(
+    override val settings: CommonizerSettings,
     private val wrappedCommonizerFactory: () -> Commonizer<WT, WR>,
     private val extractor: (T) -> WT,
     private val builder: (WR) -> R

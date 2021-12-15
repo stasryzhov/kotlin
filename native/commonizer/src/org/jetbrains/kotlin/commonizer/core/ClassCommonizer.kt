@@ -12,7 +12,7 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 class ClassCommonizer internal constructor(
     typeCommonizer: TypeCommonizer,
     supertypesCommonizer: ClassSuperTypeCommonizer
-) : AbstractStandardCommonizer<CirClass, CirClass?>() {
+) : AbstractStandardCommonizer<CirClass, CirClass?>(typeCommonizer.settings) {
     private lateinit var name: CirName
     private lateinit var kind: ClassKind
     private var isInner = false
@@ -20,8 +20,8 @@ class ClassCommonizer internal constructor(
     private var isCompanion = false
     private val supertypesCommonizer = supertypesCommonizer.asCommonizer()
     private val typeParameterListCommonizer: TypeParameterListCommonizer = TypeParameterListCommonizer(typeCommonizer)
-    private val modalityCommonizer: ModalityCommonizer = ModalityCommonizer()
-    private val visibilityCommonizer: VisibilityCommonizer = VisibilityCommonizer.equalizing()
+    private val modalityCommonizer: ModalityCommonizer = ModalityCommonizer(settings)
+    private val visibilityCommonizer: VisibilityCommonizer = VisibilityCommonizer.equalizing(settings)
 
     override fun commonizationResult(): CirClass? {
         return CirClass.create(

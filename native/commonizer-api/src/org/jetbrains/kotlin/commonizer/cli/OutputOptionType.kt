@@ -7,8 +7,8 @@ package org.jetbrains.kotlin.commonizer.cli
 
 import java.io.File
 
-internal object OutputOptionType : OptionType<File>("output-path", "Destination for commonized libraries") {
-    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<File> {
+public object OutputOptionType : OptionType<File>("output-path", "Destination for commonized libraries") {
+    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<File> {
         val file = File(rawValue)
 
         try {

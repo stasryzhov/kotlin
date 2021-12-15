@@ -12,12 +12,12 @@ import org.jetbrains.kotlin.descriptors.Modality
 
 class ClassConstructorCommonizer(
     typeCommonizer: TypeCommonizer,
-) : AbstractStandardCommonizer<CirClassConstructor, CirClassConstructor?>() {
+) : AbstractStandardCommonizer<CirClassConstructor, CirClassConstructor?>(typeCommonizer.settings) {
     private var isPrimary = false
-    private val visibility = VisibilityCommonizer.equalizing()
+    private val visibility = VisibilityCommonizer.equalizing(settings)
     private val typeParameterListCommonizer = TypeParameterListCommonizer(typeCommonizer)
     private val valueParametersCommonizer = CallableValueParametersCommonizer(typeCommonizer)
-    private val annotationsCommonizer: AnnotationsCommonizer = AnnotationsCommonizer()
+    private val annotationsCommonizer: AnnotationsCommonizer = AnnotationsCommonizer(settings)
 
     override fun commonizationResult(): CirClassConstructor? {
         val valueParameters = valueParametersCommonizer.result ?: return null

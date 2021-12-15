@@ -17,7 +17,9 @@ class FunctionOrPropertyBaseCommonizer(
     private val typeCommonizer: TypeCommonizer,
     private val extensionReceiverCommonizer: ExtensionReceiverCommonizer = ExtensionReceiverCommonizer(typeCommonizer),
     private val returnTypeCommonizer: ReturnTypeCommonizer = ReturnTypeCommonizer(typeCommonizer),
-) : NullableContextualSingleInvocationCommonizer<CirFunctionOrProperty, FunctionOrPropertyBaseCommonizer.FunctionOrProperty> {
+) : AbstractNullableContextualSingleInvocationCommonizer<CirFunctionOrProperty, FunctionOrPropertyBaseCommonizer.FunctionOrProperty>(
+    typeCommonizer.settings,
+) {
 
     data class FunctionOrProperty(
         val name: CirName,
@@ -46,8 +48,8 @@ class FunctionOrPropertyBaseCommonizer(
         return FunctionOrProperty(
             name = values.first().name,
             kind = values.singleDistinctValueOrNull { it.kind } ?: return null,
-            modality = ModalityCommonizer().commonize(values.map { it.modality }) ?: return null,
-            visibility = VisibilityCommonizer.lowering().commonize(values) ?: return null,
+            modality = ModalityCommonizer(settings).commonize(values.map { it.modality }) ?: return null,
+            visibility = VisibilityCommonizer.lowering(settings).commonize(values) ?: return null,
             extensionReceiver = (extensionReceiverCommonizer(values.map { it.extensionReceiver }) ?: return null).receiver,
             returnType = returnTypeCommonizer(values) ?: return null,
             typeParameters = TypeParameterListCommonizer(typeCommonizer).commonize(values.map { it.typeParameters }) ?: return null

@@ -10,13 +10,13 @@ import org.jetbrains.kotlin.commonizer.cir.CirFunction
 class FunctionCommonizer(
     private val typeCommonizer: TypeCommonizer,
     private val functionOrPropertyBaseCommonizer: FunctionOrPropertyBaseCommonizer,
-) : NullableSingleInvocationCommonizer<CirFunction> {
+) : AbstractNullableSingleInvocationCommonizer<CirFunction>(typeCommonizer.settings) {
     override fun invoke(values: List<CirFunction>): CirFunction? {
         if (values.isEmpty()) return null
         val functionOrProperty = functionOrPropertyBaseCommonizer(values) ?: return null
         val valueParametersResult = CallableValueParametersCommonizer(typeCommonizer).commonize(values) ?: return null
         return CirFunction(
-            annotations = AnnotationsCommonizer().commonize(values.map { it.annotations }) ?: return null,
+            annotations = AnnotationsCommonizer(settings).commonize(values.map { it.annotations }) ?: return null,
             name = values.first().name,
             typeParameters = functionOrProperty.typeParameters,
             visibility = functionOrProperty.visibility,
@@ -27,7 +27,7 @@ class FunctionCommonizer(
             extensionReceiver = functionOrProperty.extensionReceiver,
             returnType = functionOrProperty.returnType,
             kind = functionOrProperty.kind,
-            modifiers = FunctionModifiersCommonizer().commonize(values.map { it.modifiers }) ?: return null
+            modifiers = FunctionModifiersCommonizer(settings).commonize(values.map { it.modifiers }) ?: return null
         )
     }
 }

@@ -8,7 +8,7 @@ package org.jetbrains.kotlin.commonizer.cli
 import org.jetbrains.kotlin.commonizer.CommonizerDependency
 import org.jetbrains.kotlin.commonizer.parseCommonizerDependency
 
-internal abstract class DependenciesLibrariesSetOptionType(
+public abstract class DependenciesLibrariesSetOptionType(
     mandatory: Boolean,
     alias: String,
     description: String
@@ -17,7 +17,7 @@ internal abstract class DependenciesLibrariesSetOptionType(
     alias = alias,
     description = description
 ) {
-    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<List<CommonizerDependency>> {
+    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<List<CommonizerDependency>> {
         if (rawValue.isBlank()) {
             return Option(this, emptyList())
         }

@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.commonizer.cir.CirValueParameter
 import org.jetbrains.kotlin.commonizer.utils.isNull
 
 class ValueParameterCommonizer(returnTypeCommonizer: TypeCommonizer) :
-    AbstractStandardCommonizer<CirValueParameter, CirValueParameter?>() {
+    AbstractStandardCommonizer<CirValueParameter, CirValueParameter?>(returnTypeCommonizer.settings) {
     private lateinit var name: CirName
     private val returnTypeCommonizer = returnTypeCommonizer.asCommonizer()
     private var varargElementType: CirType? = null

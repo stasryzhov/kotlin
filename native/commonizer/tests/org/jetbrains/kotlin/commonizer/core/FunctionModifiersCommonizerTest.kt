@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
+import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirFunctionModifiers
 import org.junit.Test
 
@@ -160,7 +161,7 @@ class FunctionModifiersCommonizerTest : AbstractCommonizerTest<CirFunctionModifi
         mockFunctionModifiers()
     )
 
-    override fun createCommonizer() = FunctionModifiersCommonizer()
+    override fun createCommonizer() = FunctionModifiersCommonizer(DefaultCommonizerSettings)
 }
 
 private fun mockFunctionModifiers(

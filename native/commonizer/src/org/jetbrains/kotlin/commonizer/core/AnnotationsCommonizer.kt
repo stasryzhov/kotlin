@@ -8,17 +8,20 @@ package org.jetbrains.kotlin.commonizer.core
 import org.jetbrains.kotlin.commonizer.cir.*
 import org.jetbrains.kotlin.commonizer.cir.CirConstantValue.*
 import org.jetbrains.kotlin.commonizer.core.AnnotationsCommonizer.Companion.FALLBACK_MESSAGE
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.commonizer.utils.*
 import kotlin.DeprecationLevel.WARNING
 
 /**
  * This is limited implementation of annotations commonizer. It helps to commonize only [kotlin.Deprecated] annotations.
  */
-class AnnotationsCommonizer : AbstractStandardCommonizer<List<CirAnnotation>, List<CirAnnotation>>() {
+class AnnotationsCommonizer(
+    settings: CommonizerSettings,
+) : AbstractStandardCommonizer<List<CirAnnotation>, List<CirAnnotation>>(settings) {
     private var deprecatedAnnotationCommonizer: DeprecatedAnnotationCommonizer? = null
     private var deprecatedAnnotationCommonizerHasResult: Boolean = true
 
-    private val objCInteropCallableAnnotationCommonizer = ObjCInteropCallableAnnotationCommonizer.asCommonizer()
+    private val objCInteropCallableAnnotationCommonizer = ObjCInteropCallableAnnotationCommonizer(settings).asCommonizer()
     private var objCInteropCallableAnnotationCommonizerHasResult = true
 
     override fun commonizationResult(): List<CirAnnotation> {
@@ -51,7 +54,7 @@ class AnnotationsCommonizer : AbstractStandardCommonizer<List<CirAnnotation>, Li
         val nextDeprecatedAnnotation = next.firstOrNull { it.type.classifierId == DEPRECATED_ANNOTATION_CLASS_ID } ?: return true
 
         val deprecatedAnnotationCommonizer = deprecatedAnnotationCommonizer
-            ?: DeprecatedAnnotationCommonizer().also { this.deprecatedAnnotationCommonizer = it }
+            ?: DeprecatedAnnotationCommonizer(settings).also { this.deprecatedAnnotationCommonizer = it }
 
         return deprecatedAnnotationCommonizer.commonizeWith(nextDeprecatedAnnotation)
     }
@@ -61,7 +64,9 @@ class AnnotationsCommonizer : AbstractStandardCommonizer<List<CirAnnotation>, Li
     }
 }
 
-object ObjCInteropCallableAnnotationCommonizer : AssociativeCommonizer<List<CirAnnotation>> {
+class ObjCInteropCallableAnnotationCommonizer(
+    settings: CommonizerSettings
+) : AbstractAssociativeCommonizer<List<CirAnnotation>>(settings) {
     override fun commonize(first: List<CirAnnotation>, second: List<CirAnnotation>): List<CirAnnotation> {
         return if (first.any { it.type.classifierId.isObjCInteropCallableAnnotation } &&
             second.any { it.type.classifierId.isObjCInteropCallableAnnotation }
@@ -82,7 +87,9 @@ object ObjCInteropCallableAnnotationCommonizer : AssociativeCommonizer<List<CirA
     private val objCCallableAnnotationList = listOf(objCCallableAnnotation)
 }
 
-private class DeprecatedAnnotationCommonizer : Commonizer<CirAnnotation, CirAnnotation> {
+private class DeprecatedAnnotationCommonizer(
+    override val settings: CommonizerSettings,
+) : Commonizer<CirAnnotation, CirAnnotation> {
     private var level: DeprecationLevel? = null // null level means that state is empty
     private var message: String? = null // null -> message is not equal
     private lateinit var replaceWithExpression: String

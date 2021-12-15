@@ -10,11 +10,13 @@ import org.jetbrains.kotlin.commonizer.allLeaves
 import org.jetbrains.kotlin.commonizer.cir.*
 import org.jetbrains.kotlin.commonizer.mergedtree.CirKnownClassifiers
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
+import org.jetbrains.kotlin.commonizer.cir.expandedType
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 
 class TypeAliasCommonizer(
     typeCommonizer: TypeCommonizer,
     private val classifiers: CirKnownClassifiers,
-) : NullableSingleInvocationCommonizer<CirTypeAlias> {
+) : AbstractNullableSingleInvocationCommonizer<CirTypeAlias>(typeCommonizer.settings) {
 
     private val typeCommonizer = typeCommonizer.withOptions {
         withBackwardsTypeAliasSubstitutionEnabled(false)
@@ -29,7 +31,7 @@ class TypeAliasCommonizer(
 
         val underlyingType = typeCommonizer.invoke(values.map { it.underlyingType }) as? CirClassOrTypeAliasType ?: return null
 
-        val visibility = VisibilityCommonizer.lowering().commonize(values) ?: return null
+        val visibility = VisibilityCommonizer.lowering(settings).commonize(values) ?: return null
 
         return CirTypeAlias.create(
             name = name,
@@ -38,7 +40,7 @@ class TypeAliasCommonizer(
             underlyingType = underlyingType,
             expandedType = underlyingType.expandedType(),
             annotations = listOfNotNull(
-                createUnsafeNumberAnnotationIfNecessary(classifiers.classifierIndices.targets, values)
+                createUnsafeNumberAnnotationIfNecessary(classifiers.classifierIndices.targets, values, settings)
             )
         )
     }
@@ -47,11 +49,12 @@ class TypeAliasCommonizer(
 private fun createUnsafeNumberAnnotationIfNecessary(
     targets: List<CommonizerTarget>,
     values: List<CirTypeAlias>,
+    settings: CommonizerSettings,
 ): CirAnnotation? {
     val expandedTypes = values.map { it.expandedType.classifierId }
 
     // All typealias have to be potentially substitutable (aka have to be some kind of number type)
-    if (!expandedTypes.all { OptimisticNumbersTypeCommonizer.isOptimisticallySubstitutable(it) }) {
+    if (!expandedTypes.all { OptimisticNumbersTypeCommonizer(settings).isOptimisticallySubstitutable(it) }) {
         return null
     }
 

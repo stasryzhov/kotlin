@@ -7,8 +7,8 @@ package org.jetbrains.kotlin.commonizer.cli
 
 import java.io.File
 
-internal object NativeDistributionOptionType : OptionType<File>("distribution-path", "Path to the Kotlin/Native distribution") {
-    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<File> {
+public object NativeDistributionOptionType : OptionType<File>("distribution-path", "Path to the Kotlin/Native distribution") {
+    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<File> {
         val file = File(rawValue)
 
         try {

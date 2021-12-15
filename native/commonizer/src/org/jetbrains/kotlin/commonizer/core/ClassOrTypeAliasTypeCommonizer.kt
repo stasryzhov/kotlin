@@ -16,9 +16,9 @@ import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 internal class ClassOrTypeAliasTypeCommonizer(
     private val typeCommonizer: TypeCommonizer,
     private val classifiers: CirKnownClassifiers
-) : NullableSingleInvocationCommonizer<CirClassOrTypeAliasType> {
+) : AbstractNullableSingleInvocationCommonizer<CirClassOrTypeAliasType>(typeCommonizer.settings) {
 
-    private val isMarkedNullableCommonizer = TypeNullabilityCommonizer(typeCommonizer.options)
+    private val isMarkedNullableCommonizer = TypeNullabilityCommonizer(typeCommonizer.options, settings)
     private val typeDistanceMeasurement = TypeDistanceMeasurement(typeCommonizer.options)
 
     override fun invoke(values: List<CirClassOrTypeAliasType>): CirClassOrTypeAliasType? {
@@ -28,7 +28,7 @@ internal class ClassOrTypeAliasTypeCommonizer(
 
         val substitutedTypes = substituteTypesIfNecessary(values)
             ?: typeCommonizer.options.enableOptimisticNumberTypeCommonization.ifTrue {
-                return OptimisticNumbersTypeCommonizer.commonize(expansions)?.makeNullableIfNecessary(isMarkedNullable)
+                return OptimisticNumbersTypeCommonizer(settings).commonize(expansions)?.makeNullableIfNecessary(isMarkedNullable)
             } ?: return null
 
         val classifierId = substitutedTypes.singleDistinctValueOrNull { it.classifierId } ?: return null

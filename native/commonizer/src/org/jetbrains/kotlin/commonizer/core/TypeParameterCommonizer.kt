@@ -10,7 +10,9 @@ import org.jetbrains.kotlin.commonizer.cir.CirType
 import org.jetbrains.kotlin.commonizer.cir.CirTypeParameter
 import org.jetbrains.kotlin.types.Variance
 
-class TypeParameterCommonizer(typeCommonizer: TypeCommonizer) : AbstractStandardCommonizer<CirTypeParameter, CirTypeParameter?>() {
+class TypeParameterCommonizer(
+    typeCommonizer: TypeCommonizer
+) : AbstractStandardCommonizer<CirTypeParameter, CirTypeParameter?>(typeCommonizer.settings) {
     private lateinit var name: CirName
     private var isReified = false
     private lateinit var variance: Variance
@@ -40,5 +42,6 @@ class TypeParameterCommonizer(typeCommonizer: TypeCommonizer) : AbstractStandard
 }
 
 private class TypeParameterUpperBoundsCommonizer(typeCommonizer: TypeCommonizer) : AbstractListCommonizer<CirType, CirType>(
-    singleElementCommonizerFactory = { typeCommonizer.asCommonizer() }
+    singleElementCommonizerFactory = { typeCommonizer.asCommonizer() },
+    typeCommonizer.settings,
 )

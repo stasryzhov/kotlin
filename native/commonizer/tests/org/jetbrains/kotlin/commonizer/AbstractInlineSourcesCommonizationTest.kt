@@ -162,7 +162,8 @@ abstract class AbstractInlineSourcesCommonizationTest : KtInlineSourceCommonizer
 
     private fun Parameters.toCommonizerParameters(
         resultsConsumer: ResultsConsumer,
-        manifestDataProvider: (CommonizerTarget) -> NativeManifestDataProvider = { MockNativeManifestDataProvider(it) }
+        manifestDataProvider: (CommonizerTarget) -> NativeManifestDataProvider = { MockNativeManifestDataProvider(it) },
+        commonizerSettings: CommonizerSettings = DefaultCommonizerSettings,
     ): CommonizerParameters {
         return CommonizerParameters(
             outputTargets = outputTargets,
@@ -181,7 +182,8 @@ abstract class AbstractInlineSourcesCommonizationTest : KtInlineSourceCommonizer
                     modulesProvider = MockModulesProvider.create(target.modules.map { createModuleDescriptor(it) })
                 )
             },
-            resultsConsumer = resultsConsumer
+            resultsConsumer = resultsConsumer,
+            settings = commonizerSettings,
         )
     }
 }

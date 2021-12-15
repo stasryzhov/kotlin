@@ -15,10 +15,6 @@ fun StatsCollector(type: StatsType, targets: List<CommonizerTarget>): StatsColle
     }
 }
 
-enum class StatsType {
-    RAW, AGGREGATED, NONE;
-}
-
 interface StatsCollector {
     data class StatsKey(
         val id: String,

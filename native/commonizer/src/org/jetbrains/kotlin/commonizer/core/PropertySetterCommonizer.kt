@@ -6,9 +6,12 @@
 package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.CirPropertySetter
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.descriptors.Visibilities
 
-object PropertySetterCommonizer : AssociativeCommonizer<CirPropertySetter?> {
+class PropertySetterCommonizer(
+    settings: CommonizerSettings,
+) : AbstractAssociativeCommonizer<CirPropertySetter?>(settings) {
     override fun commonize(first: CirPropertySetter?, second: CirPropertySetter?): CirPropertySetter? {
         if (first == null && second == null) return null
         if (first != null && second == null) return privateFallbackSetter

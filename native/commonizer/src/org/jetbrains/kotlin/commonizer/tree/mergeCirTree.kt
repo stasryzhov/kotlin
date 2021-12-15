@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.commonizer.tree
 
 import org.jetbrains.kotlin.commonizer.TargetDependent
 import org.jetbrains.kotlin.commonizer.cir.*
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.commonizer.mergedtree.*
 import org.jetbrains.kotlin.commonizer.mergedtree.CirNodeRelationship.Companion.ParentNode
 import org.jetbrains.kotlin.commonizer.mergedtree.CirNodeRelationship.ParentNode
@@ -17,15 +18,19 @@ internal data class TargetBuildingContext(
     val storageManager: StorageManager,
     val classifiers: CirKnownClassifiers,
     val memberContext: CirMemberContext = CirMemberContext.empty,
+    val commonizationSettings: CommonizerSettings,
     val targets: Int, val targetIndex: Int
 ) {
     fun withMemberContextOf(clazz: CirClass) = copy(memberContext = memberContext.withContextOf(clazz))
 }
 
 internal fun mergeCirTree(
-    storageManager: StorageManager, classifiers: CirKnownClassifiers, roots: TargetDependent<CirTreeRoot>
+    storageManager: StorageManager,
+    classifiers: CirKnownClassifiers,
+    roots: TargetDependent<CirTreeRoot>,
+    settings: CommonizerSettings,
 ): CirRootNode {
-    val node = buildRootNode(storageManager, classifiers.commonDependencies, roots.size)
+    val node = buildRootNode(storageManager, classifiers.commonDependencies, roots.size, settings)
     roots.targets.withIndex().forEach { (targetIndex, target) ->
         node.targetDeclarations[targetIndex] = CirRoot.create(target)
         node.buildModules(
@@ -33,6 +38,7 @@ internal fun mergeCirTree(
                 storageManager = storageManager,
                 classifiers = classifiers,
                 memberContext = CirMemberContext.empty,
+                commonizationSettings = settings,
                 targets = roots.size,
                 targetIndex = targetIndex
             ), roots[target].modules
@@ -47,7 +53,7 @@ internal fun CirRootNode.buildModules(context: TargetBuildingContext, modules: L
 
 internal fun CirRootNode.buildModule(context: TargetBuildingContext, treeModule: CirTreeModule) {
     val moduleNode = modules.getOrPut(treeModule.module.name) {
-        buildModuleNode(context.storageManager, context.targets)
+        buildModuleNode(context.storageManager, context.targets, context.commonizationSettings)
     }
     moduleNode.targetDeclarations[context.targetIndex] = treeModule.module
     treeModule.packages.fastForEach { pkg -> moduleNode.buildPackage(context, pkg) }
@@ -55,7 +61,7 @@ internal fun CirRootNode.buildModule(context: TargetBuildingContext, treeModule:
 
 internal fun CirModuleNode.buildPackage(context: TargetBuildingContext, treePackage: CirTreePackage) {
     val packageNode = packages.getOrPut(treePackage.pkg.packageName) {
-        buildPackageNode(context.storageManager, context.targets)
+        buildPackageNode(context.storageManager, context.targets, context.commonizationSettings)
     }
     packageNode.targetDeclarations[context.targetIndex] = treePackage.pkg
     treePackage.functions.fastForEach { function -> packageNode.buildFunction(context, function) }
@@ -68,7 +74,14 @@ internal fun CirNodeWithMembers<*, *>.buildClass(
     context: TargetBuildingContext, treeClass: CirTreeClass, parent: CirNode<*, *>? = null
 ) {
     val classNode = classes.getOrPut(treeClass.clazz.name) {
-        buildClassNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent), treeClass.id)
+        buildClassNode(
+            context.storageManager,
+            context.targets,
+            context.classifiers,
+            ParentNode(parent),
+            treeClass.id,
+            context.commonizationSettings
+        )
     }
     classNode.targetDeclarations[context.targetIndex] = treeClass.clazz
     val contextWithClass = context.withMemberContextOf(treeClass.clazz)
@@ -84,7 +97,7 @@ internal fun CirNodeWithMembers<*, *>.buildFunction(
     val functionNode = functions.getOrPut(
         FunctionApproximationKey.create(function, SignatureBuildingContext(context.memberContext, function))
     ) {
-        buildFunctionNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent))
+        buildFunctionNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent), context.commonizationSettings)
     }
     /* Multiple type substitutions could in result in the same commonization result */
     functionNode.targetDeclarations.set(context.targetIndex, function)
@@ -96,7 +109,7 @@ internal fun CirNodeWithMembers<*, *>.buildProperty(
     val propertyNode = properties.getOrPut(
         PropertyApproximationKey.create(property, SignatureBuildingContext(context.memberContext, property))
     ) {
-        buildPropertyNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent))
+        buildPropertyNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent), context.commonizationSettings)
     }
     /* Multiple type substitutions could in result in the same commonization result */
     propertyNode.targetDeclarations.set(context.targetIndex, property)
@@ -108,7 +121,13 @@ internal fun CirClassNode.buildConstructor(
     val constructorNode = constructors.getOrPut(
         ConstructorApproximationKey.create(constructor, SignatureBuildingContext(context.memberContext, constructor))
     ) {
-        buildClassConstructorNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent))
+        buildClassConstructorNode(
+            context.storageManager,
+            context.targets,
+            context.classifiers,
+            ParentNode(parent),
+            context.commonizationSettings
+        )
     }
     /* Multiple type substitutions could in result in the same commonization result */
     constructorNode.targetDeclarations.set(context.targetIndex, constructor)
@@ -116,7 +135,7 @@ internal fun CirClassNode.buildConstructor(
 
 internal fun CirPackageNode.buildTypeAlias(context: TargetBuildingContext, treeTypeAlias: CirTreeTypeAlias) {
     val typeAliasNode = typeAliases.getOrPut(treeTypeAlias.typeAlias.name) {
-        buildTypeAliasNode(context.storageManager, context.targets, context.classifiers, treeTypeAlias.id)
+        buildTypeAliasNode(context.storageManager, context.targets, context.classifiers, treeTypeAlias.id, context.commonizationSettings)
     }
     typeAliasNode.targetDeclarations[context.targetIndex] = treeTypeAlias.typeAlias
 }

@@ -7,8 +7,8 @@ package org.jetbrains.kotlin.commonizer.cli
 
 import org.jetbrains.kotlin.commonizer.CommonizerLogLevel
 
-internal object LogLevelOptionType : OptionType<CommonizerLogLevel>("log-level", "{quiet, info}", false) {
-    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<CommonizerLogLevel> {
+public object LogLevelOptionType : OptionType<CommonizerLogLevel>("log-level", "{quiet, info}", false) {
+    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<CommonizerLogLevel> {
         return when (rawValue.lowercase().trim()) {
             "quiet" -> Option(this, CommonizerLogLevel.Quiet)
             "info" -> Option(this, CommonizerLogLevel.Info)

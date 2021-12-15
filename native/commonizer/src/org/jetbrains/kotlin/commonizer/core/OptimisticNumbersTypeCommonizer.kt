@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.CirClassType
 import org.jetbrains.kotlin.commonizer.cir.CirEntityId
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 
 private typealias BitWidth = Int
 
@@ -69,7 +70,9 @@ private val floatingPointVars = SubstitutableNumbers(
     )
 )
 
-internal object OptimisticNumbersTypeCommonizer : AssociativeCommonizer<CirClassType> {
+internal class OptimisticNumbersTypeCommonizer(
+    settings: CommonizerSettings,
+) : AbstractAssociativeCommonizer<CirClassType>(settings) {
     override fun commonize(first: CirClassType, second: CirClassType): CirClassType? {
         return signedIntegers.choose(first, second)
             ?: unsignedIntegers.choose(first, second)

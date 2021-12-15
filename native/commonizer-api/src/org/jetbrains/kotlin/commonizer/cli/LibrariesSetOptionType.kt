@@ -7,7 +7,7 @@ package org.jetbrains.kotlin.commonizer.cli
 
 import java.io.File
 
-internal abstract class LibrariesSetOptionType(
+public abstract class LibrariesSetOptionType(
     mandatory: Boolean,
     alias: String,
     description: String
@@ -16,7 +16,7 @@ internal abstract class LibrariesSetOptionType(
     alias = alias,
     description = description
 ) {
-    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<List<File>> {
+    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<List<File>> {
         if (rawValue.isBlank()) {
             return Option(this, emptyList())
         }

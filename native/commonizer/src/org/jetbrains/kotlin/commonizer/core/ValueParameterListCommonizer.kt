@@ -9,7 +9,8 @@ import org.jetbrains.kotlin.commonizer.cir.CirName
 import org.jetbrains.kotlin.commonizer.cir.CirValueParameter
 
 class ValueParameterListCommonizer(typeCommonizer: TypeCommonizer) : AbstractListCommonizer<CirValueParameter, CirValueParameter>(
-    singleElementCommonizerFactory = { ValueParameterCommonizer(typeCommonizer) }
+    singleElementCommonizerFactory = { ValueParameterCommonizer(typeCommonizer) },
+    typeCommonizer.settings,
 ) {
     fun overwriteNames(names: List<CirName>) {
         forEachSingleElementCommonizer { index, singleElementCommonizer ->

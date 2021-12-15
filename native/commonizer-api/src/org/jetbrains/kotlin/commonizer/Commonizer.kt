@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.commonizer
 
+import org.jetbrains.kotlin.commonizer.cli.CommonizerSettingOptionType
 import java.io.File
 import java.io.Serializable
 
@@ -16,7 +17,8 @@ public interface CInteropCommonizer : Serializable {
         dependencyLibraries: Set<CommonizerDependency>,
         outputTargets: Set<SharedCommonizerTarget>,
         outputDirectory: File,
-        logLevel: CommonizerLogLevel = CommonizerLogLevel.Quiet
+        logLevel: CommonizerLogLevel = CommonizerLogLevel.Quiet,
+        additionalSettings: List<CommonizerSetting<*>> = emptyList(),
     )
 }
 
@@ -26,6 +28,15 @@ public interface NativeDistributionCommonizer : Serializable {
         konanHome: File,
         outputDirectory: File,
         outputTargets: Set<SharedCommonizerTarget>,
-        logLevel: CommonizerLogLevel = CommonizerLogLevel.Quiet
+        logLevel: CommonizerLogLevel = CommonizerLogLevel.Quiet,
+        additionalSettings: List<CommonizerSetting<*>> = emptyList(),
     )
 }
+
+public data class CommonizerSetting<T : Any>(
+    public val settingType: CommonizerSettingOptionType<T>,
+    public val settingValue: T,
+)
+
+public infix fun <T : Any> CommonizerSettingOptionType<T>.setTo(settingValue: T): CommonizerSetting<T> =
+    CommonizerSetting(this, settingValue)

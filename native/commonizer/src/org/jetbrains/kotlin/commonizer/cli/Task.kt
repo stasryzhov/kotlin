@@ -43,6 +43,15 @@ internal abstract class Task(private val options: Collection<Option<*>>) : Compa
         return option?.value as T?
     }
 
+    internal fun <T : Any, O : CommonizerSettingOptionType<T>> getCommonizerSetting(setting: O): T {
+        val s = options.singleOrNull { option ->
+            option.type == setting
+        }?.value ?: setting.default
+
+        @Suppress("UNCHECKED_CAST")
+        return s as T
+    }
+
     override fun compareTo(other: Task): Int {
         category.compareTo(other.category).let {
             if (it != 0) return it

@@ -6,8 +6,11 @@
 package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.CirFunctionModifiers
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 
-class FunctionModifiersCommonizer : AbstractStandardCommonizer<CirFunctionModifiers, CirFunctionModifiers>() {
+class FunctionModifiersCommonizer(
+    settings: CommonizerSettings,
+) : AbstractStandardCommonizer<CirFunctionModifiers, CirFunctionModifiers>(settings) {
     private class MutableModifiers(
         var isOperator: Boolean,
         var isInfix: Boolean,

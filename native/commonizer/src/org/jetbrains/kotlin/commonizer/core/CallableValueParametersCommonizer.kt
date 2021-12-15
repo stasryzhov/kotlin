@@ -12,11 +12,12 @@ import org.jetbrains.kotlin.commonizer.cir.CirName
 import org.jetbrains.kotlin.commonizer.cir.CirValueParameter
 import org.jetbrains.kotlin.commonizer.core.CallableValueParametersCommonizer.CallableToPatch.Companion.doNothing
 import org.jetbrains.kotlin.commonizer.core.CallableValueParametersCommonizer.CallableToPatch.Companion.patchCallables
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.commonizer.utils.compactMapIndexed
 import org.jetbrains.kotlin.commonizer.utils.isObjCInteropCallableAnnotation
 
 class CallableValueParametersCommonizer(
-    typeCommonizer: TypeCommonizer,
+    private val typeCommonizer: TypeCommonizer,
 ) : Commonizer<CirCallableMemberWithParameters, CallableValueParametersCommonizer.Result?> {
     class Result(
         val hasStableParameterNames: Boolean,
@@ -120,6 +121,8 @@ class CallableValueParametersCommonizer(
     private var hasStableParameterNames = true
     private var valueParameterNames: ValueParameterNames? = null
     private var error = false
+    override val settings: CommonizerSettings
+        get() = typeCommonizer.settings
 
     override val result: Result?
         get() {
