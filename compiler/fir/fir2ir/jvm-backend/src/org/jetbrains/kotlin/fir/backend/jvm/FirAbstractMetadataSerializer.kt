@@ -37,7 +37,7 @@ import org.jetbrains.kotlin.types.model.SimpleTypeMarker
 import org.jetbrains.org.objectweb.asm.Type
 import org.jetbrains.org.objectweb.asm.commons.Method
 
-class FirMetadataSerializer(
+class FirAbstractMetadataSerializer(
     private val session: FirSession,
     private val context: JvmBackendContext,
     private val irClass: IrClass,
@@ -159,7 +159,7 @@ class FirMetadataSerializer(
             is FirMetadataSource.Class -> FirElementSerializer.create(
                 components.session,
                 components.scopeSession,
-                metadata.fir, serializerExtension, (parent as? FirMetadataSerializer)?.serializer, approximator
+                metadata.fir, serializerExtension, (parent as? FirAbstractMetadataSerializer)?.serializer, approximator
             )
             is FirMetadataSource.File -> FirElementSerializer.createTopLevel(
                 components.session,
