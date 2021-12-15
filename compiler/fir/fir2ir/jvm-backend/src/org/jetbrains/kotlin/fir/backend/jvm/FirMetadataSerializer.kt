@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.fir.declarations.builder.buildPropertyAccessor
 import org.jetbrains.kotlin.fir.declarations.builder.buildValueParameterCopy
 import org.jetbrains.kotlin.fir.diagnostics.ConeIntermediateDiagnostic
 import org.jetbrains.kotlin.fir.languageVersionSettings
+import org.jetbrains.kotlin.fir.packageFqName
 import org.jetbrains.kotlin.fir.serialization.FirElementSerializer
 import org.jetbrains.kotlin.fir.symbols.impl.FirAnonymousFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirDelegateFieldSymbol
@@ -28,7 +29,6 @@ import org.jetbrains.kotlin.fir.types.*
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
 import org.jetbrains.kotlin.ir.declarations.MetadataSource
-import org.jetbrains.kotlin.ir.util.getPackageFragment
 import org.jetbrains.kotlin.metadata.jvm.serialization.JvmStringTable
 import org.jetbrains.kotlin.protobuf.MessageLite
 import org.jetbrains.kotlin.types.AbstractTypeApproximator
@@ -37,125 +37,42 @@ import org.jetbrains.kotlin.types.model.SimpleTypeMarker
 import org.jetbrains.org.objectweb.asm.Type
 import org.jetbrains.org.objectweb.asm.commons.Method
 
+fun makeFirMetadataSerializerForIrClass(
+    session: FirSession,
+    context: JvmBackendContext,
+    irClass: IrClass,
+    serializationBindings: JvmSerializationBindings,
+    components: Fir2IrComponents,
+    parent: MetadataSerializer?
+): FirMetadataSerializer {
+    val approximator = TypeApproximatorForMetadataSerializer(session)
+    val localDelegatedProperties = context.localDelegatedProperties[irClass.attributeOwnerId]?.map {
+        (it.owner.metadata as FirMetadataSource.Property).fir.copyToFreeProperty(approximator)
+    } ?: emptyList()
+    val firSerializerExtension = FirJvmSerializerExtension(
+        session, serializationBindings, context.state, irClass.metadata, localDelegatedProperties,
+        approximator, context.typeMapper, components
+    )
+    return FirMetadataSerializer(
+        session, context, irClass.metadata, serializationBindings,
+        firSerializerExtension,
+        components, parent, approximator
+    )
+}
+
 class FirMetadataSerializer(
     private val session: FirSession,
     private val context: JvmBackendContext,
-    private val irClass: IrClass,
+    metadata: MetadataSource?,
     private val serializationBindings: JvmSerializationBindings,
+    private val serializerExtension: FirJvmSerializerExtension,
     components: Fir2IrComponents,
-    parent: MetadataSerializer?
+    parent: MetadataSerializer?,
+    private val approximator: AbstractTypeApproximator = TypeApproximatorForMetadataSerializer(session)
 ) : MetadataSerializer {
-    private val approximator = object : AbstractTypeApproximator(session.typeContext, session.languageVersionSettings) {
-        override fun createErrorType(debugName: String): SimpleTypeMarker {
-            return ConeKotlinErrorType(ConeIntermediateDiagnostic(debugName))
-        }
-    }
-
-    private fun FirTypeRef.approximated(toSuper: Boolean, typeParameterSet: MutableCollection<FirTypeParameter>): FirTypeRef {
-        val approximatedType = if (toSuper)
-            approximator.approximateToSuperType(coneType, TypeApproximatorConfiguration.PublicDeclaration)
-        else
-            approximator.approximateToSubType(coneType, TypeApproximatorConfiguration.PublicDeclaration)
-        return withReplacedConeType(approximatedType as? ConeKotlinType).apply { coneType.collectTypeParameters(typeParameterSet) }
-    }
-
-    private fun ConeKotlinType.collectTypeParameters(c: MutableCollection<FirTypeParameter>) {
-        when (this) {
-            is ConeFlexibleType -> {
-                lowerBound.collectTypeParameters(c)
-                upperBound.collectTypeParameters(c)
-            }
-            is ConeClassLikeType ->
-                for (projection in type.typeArguments) {
-                    if (projection is ConeKotlinTypeProjection) {
-                        projection.type.collectTypeParameters(c)
-                    }
-                }
-            is ConeTypeParameterType -> c.add(lookupTag.typeParameterSymbol.fir)
-            else -> Unit
-        }
-    }
-
-    private fun FirFunction.copyToFreeAnonymousFunction(): FirAnonymousFunction {
-        val function = this
-        return buildAnonymousFunction {
-            val typeParameterSet = function.typeParameters.filterIsInstanceTo(mutableSetOf<FirTypeParameter>())
-            moduleData = function.moduleData
-            origin = FirDeclarationOrigin.Source
-            symbol = FirAnonymousFunctionSymbol()
-            returnTypeRef = function.returnTypeRef.approximated(toSuper = true, typeParameterSet)
-            receiverTypeRef = function.receiverTypeRef?.approximated(toSuper = false, typeParameterSet)
-            isLambda = (function as? FirAnonymousFunction)?.isLambda == true
-            hasExplicitParameterList = (function as? FirAnonymousFunction)?.hasExplicitParameterList == true
-            valueParameters.addAll(function.valueParameters.map {
-                buildValueParameterCopy(it) {
-                    returnTypeRef = it.returnTypeRef.approximated(toSuper = false, typeParameterSet)
-                }
-            })
-            typeParameters += typeParameterSet
-        }
-    }
-
-    private fun FirPropertyAccessor.copyToFreeAccessor(): FirPropertyAccessor {
-        val accessor = this
-        return buildPropertyAccessor {
-            val typeParameterSet = accessor.typeParameters.toMutableSet()
-            moduleData = accessor.moduleData
-            origin = FirDeclarationOrigin.Source
-            returnTypeRef = accessor.returnTypeRef.approximated(toSuper = true, typeParameterSet)
-            symbol = FirPropertyAccessorSymbol()
-            isGetter = accessor.isGetter
-            status = accessor.status
-            accessor.valueParameters.mapTo(valueParameters) {
-                buildValueParameterCopy(it) {
-                    returnTypeRef = it.returnTypeRef.approximated(toSuper = false, typeParameterSet)
-                }
-            }
-            annotations += accessor.annotations
-            typeParameters += typeParameterSet
-        }
-    }
-
-    private fun FirProperty.copyToFreeProperty(): FirProperty {
-        val property = this
-        return buildProperty {
-            val typeParameterSet = property.typeParameters.toMutableSet()
-            moduleData = property.moduleData
-            origin = FirDeclarationOrigin.Source
-            symbol = FirPropertySymbol(property.symbol.callableId)
-            returnTypeRef = property.returnTypeRef.approximated(toSuper = true, typeParameterSet)
-            receiverTypeRef = property.receiverTypeRef?.approximated(toSuper = false, typeParameterSet)
-            name = property.name
-            initializer = property.initializer
-            delegate = property.delegate
-            delegateFieldSymbol = property.delegateFieldSymbol?.let {
-                FirDelegateFieldSymbol(it.callableId)
-            }
-            getter = property.getter?.copyToFreeAccessor()
-            setter = property.setter?.copyToFreeAccessor()
-            isVar = property.isVar
-            isLocal = property.isLocal
-            status = property.status
-            dispatchReceiverType = property.dispatchReceiverType
-            attributes = property.attributes.copy()
-            annotations += property.annotations
-            typeParameters += typeParameterSet
-        }.apply {
-            delegateFieldSymbol?.bind(this)
-        }
-    }
-
-    private val localDelegatedProperties = context.localDelegatedProperties[irClass.attributeOwnerId]?.map {
-        (it.owner.metadata as FirMetadataSource.Property).fir.copyToFreeProperty()
-    } ?: emptyList()
-
-    private val serializerExtension = FirJvmSerializerExtension(
-        session, serializationBindings, context.state, irClass.metadata, localDelegatedProperties, approximator,
-        context.typeMapper, components
-    )
 
     private val serializer: FirElementSerializer? =
-        when (val metadata = irClass.metadata) {
+        when (metadata) {
             is FirMetadataSource.Class -> FirElementSerializer.create(
                 components.session,
                 components.scopeSession,
@@ -180,11 +97,11 @@ class FirMetadataSerializer(
         val message = when (metadata) {
             is FirMetadataSource.Class -> serializer!!.classProto(metadata.fir).build()
             is FirMetadataSource.File ->
-                serializer!!.packagePartProto(irClass.getPackageFragment()!!.fqName, metadata.fir).apply {
+                serializer!!.packagePartProto(metadata.fir.packageFqName, metadata.fir).apply {
                     serializerExtension.serializeJvmPackage(this)
                 }.build()
             is FirMetadataSource.Function -> {
-                val withTypeParameters = metadata.fir.copyToFreeAnonymousFunction()
+                val withTypeParameters = metadata.fir.copyToFreeAnonymousFunction(approximator)
                 serializationBindings.get(FirJvmSerializerExtension.METHOD_FOR_FIR_FUNCTION, metadata.fir)?.let {
                     serializationBindings.put(FirJvmSerializerExtension.METHOD_FOR_FIR_FUNCTION, withTypeParameters, it)
                 }
@@ -215,5 +132,111 @@ class FirMetadataSerializer(
     override fun bindFieldMetadata(metadata: MetadataSource.Property, signature: Pair<Type, String>) {
         val fir = (metadata as FirMetadataSource.Property).fir
         context.state.globalSerializationBindings.put(FirJvmSerializerExtension.FIELD_FOR_PROPERTY, fir, signature)
+    }
+}
+
+internal class TypeApproximatorForMetadataSerializer(session: FirSession) :
+    AbstractTypeApproximator(session.typeContext, session.languageVersionSettings) {
+
+    override fun createErrorType(debugName: String): SimpleTypeMarker {
+        return ConeKotlinErrorType(ConeIntermediateDiagnostic(debugName))
+    }
+}
+
+private fun FirFunction.copyToFreeAnonymousFunction(approximator: AbstractTypeApproximator): FirAnonymousFunction {
+    val function = this
+    return buildAnonymousFunction {
+        val typeParameterSet = function.typeParameters.filterIsInstanceTo(mutableSetOf<FirTypeParameter>())
+        moduleData = function.moduleData
+        origin = FirDeclarationOrigin.Source
+        symbol = FirAnonymousFunctionSymbol()
+        returnTypeRef = function.returnTypeRef.approximated(approximator, typeParameterSet, toSuper = true)
+        receiverTypeRef = function.receiverTypeRef?.approximated(approximator, typeParameterSet, toSuper = false)
+        isLambda = (function as? FirAnonymousFunction)?.isLambda == true
+        hasExplicitParameterList = (function as? FirAnonymousFunction)?.hasExplicitParameterList == true
+        valueParameters.addAll(function.valueParameters.map {
+            buildValueParameterCopy(it) {
+                returnTypeRef = it.returnTypeRef.approximated(approximator, typeParameterSet, toSuper = false)
+            }
+        })
+        typeParameters += typeParameterSet
+    }
+}
+
+private fun FirPropertyAccessor.copyToFreeAccessor(approximator: AbstractTypeApproximator): FirPropertyAccessor {
+    val accessor = this
+    return buildPropertyAccessor {
+        val typeParameterSet = accessor.typeParameters.toMutableSet()
+        moduleData = accessor.moduleData
+        origin = FirDeclarationOrigin.Source
+        returnTypeRef = accessor.returnTypeRef.approximated(approximator, typeParameterSet, toSuper = true)
+        symbol = FirPropertyAccessorSymbol()
+        isGetter = accessor.isGetter
+        status = accessor.status
+        accessor.valueParameters.mapTo(valueParameters) {
+            buildValueParameterCopy(it) {
+                returnTypeRef = it.returnTypeRef.approximated(approximator, typeParameterSet, toSuper = false)
+            }
+        }
+        annotations += accessor.annotations
+        typeParameters += typeParameterSet
+    }
+}
+
+internal fun FirProperty.copyToFreeProperty(approximator: AbstractTypeApproximator): FirProperty {
+    val property = this
+    return buildProperty {
+        val typeParameterSet = property.typeParameters.toMutableSet()
+        moduleData = property.moduleData
+        origin = FirDeclarationOrigin.Source
+        symbol = FirPropertySymbol(property.symbol.callableId)
+        returnTypeRef = property.returnTypeRef.approximated(approximator, typeParameterSet, toSuper = true)
+        receiverTypeRef = property.receiverTypeRef?.approximated(approximator, typeParameterSet, toSuper = false)
+        name = property.name
+        initializer = property.initializer
+        delegate = property.delegate
+        delegateFieldSymbol = property.delegateFieldSymbol?.let {
+            FirDelegateFieldSymbol(it.callableId)
+        }
+        getter = property.getter?.copyToFreeAccessor(approximator)
+        setter = property.setter?.copyToFreeAccessor(approximator)
+        isVar = property.isVar
+        isLocal = property.isLocal
+        status = property.status
+        dispatchReceiverType = property.dispatchReceiverType
+        attributes = property.attributes.copy()
+        annotations += property.annotations
+        typeParameters += typeParameterSet
+    }.apply {
+        delegateFieldSymbol?.bind(this)
+    }
+}
+
+internal fun FirTypeRef.approximated(
+    approximator: AbstractTypeApproximator,
+    typeParameterSet: MutableCollection<FirTypeParameter>,
+    toSuper: Boolean
+): FirTypeRef {
+    val approximatedType = if (toSuper)
+        approximator.approximateToSuperType(coneType, TypeApproximatorConfiguration.PublicDeclaration)
+    else
+        approximator.approximateToSubType(coneType, TypeApproximatorConfiguration.PublicDeclaration)
+    return withReplacedConeType(approximatedType as? ConeKotlinType).apply { coneType.collectTypeParameters(typeParameterSet) }
+}
+
+private fun ConeKotlinType.collectTypeParameters(c: MutableCollection<FirTypeParameter>) {
+    when (this) {
+        is ConeFlexibleType -> {
+            lowerBound.collectTypeParameters(c)
+            upperBound.collectTypeParameters(c)
+        }
+        is ConeClassLikeType ->
+            for (projection in type.typeArguments) {
+                if (projection is ConeKotlinTypeProjection) {
+                    projection.type.collectTypeParameters(c)
+                }
+            }
+        is ConeTypeParameterType -> c.add(lookupTag.typeParameterSymbol.fir)
+        else -> Unit
     }
 }
