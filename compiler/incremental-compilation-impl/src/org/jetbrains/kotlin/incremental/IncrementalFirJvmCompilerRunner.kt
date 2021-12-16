@@ -117,14 +117,11 @@ class IncrementalFirJvmCompilerRunner(
             // TODO: file path normalization
             val allCommonSources = args.commonSources?.mapTo(mutableSetOf(), ::File).orEmpty()
 
-            val buildTimeMode: BuildTime
             val dirtySources = when (compilationMode) {
                 is CompilationMode.Incremental -> {
-                    buildTimeMode = BuildTime.INCREMENTAL_ITERATION
                     compilationMode.dirtyFiles.toMutableList()
                 }
                 is CompilationMode.Rebuild -> {
-                    buildTimeMode = BuildTime.NON_INCREMENTAL_ITERATION
                     reporter.addAttribute(compilationMode.reason)
                     allKotlinSources.toMutableList()
                 }
@@ -132,6 +129,7 @@ class IncrementalFirJvmCompilerRunner(
             // TODO: check possible important modifications of the dirty sources after this point
             if (dirtySources.isEmpty()) return ExitCode.OK
 
+            @Suppress("UNUSED_VARIABLE")
             val currentBuildInfo = BuildInfo(startTS = System.currentTimeMillis(), classpathAbiSnapshot)
             val buildDirtyLookupSymbols = HashSet<LookupSymbol>()
             val buildDirtyFqNames = HashSet<FqName>()
@@ -200,6 +198,7 @@ class IncrementalFirJvmCompilerRunner(
             // !! main class - maybe from cache?
             var mainClassFqName: FqName? = null
 
+            @Suppress("UNUSED_PARAMETER", "UNUSED_VALUE")
             fun incrementalCompilationStep(
                 allCommonSourceFiles: LinkedHashSet<File>,
                 allPlatformSourceFiles: LinkedHashSet<File>,
@@ -253,6 +252,8 @@ class IncrementalFirJvmCompilerRunner(
                 reporter.measure(BuildTime.IC_UPDATE_CACHES) {
                     caches.platformCache.updateComplementaryFiles(dirtySources, expectActualTracker)
                     caches.lookupCache.update(lookupTracker, sourcesToCompile, removedKotlinSources)
+
+//                    caches.platformCache.collectClassChangesByMetadata()
                     updateIncrementalCache(emptyList(), caches.platformCache, changesCollector, null)
                 }
                 if (compilationMode is CompilationMode.Rebuild) {
@@ -394,7 +395,7 @@ fun CompilerConfiguration.configureBaseRoots(args: K2JVMCompilerArguments) {
         val packagePrefix = args.javaPackagePrefix
         addJavaSourceRoot(file, packagePrefix)
         if (!isJava9Module && packagePrefix == null && (file.name == PsiJavaModule.MODULE_INFO_FILE ||
-                    (file.isDirectory && file.listFiles().any { it.name == PsiJavaModule.MODULE_INFO_FILE }))
+                    (file.isDirectory && file.listFiles()?.any { it.name == PsiJavaModule.MODULE_INFO_FILE } == true))
         ) {
             isJava9Module = true
         }
