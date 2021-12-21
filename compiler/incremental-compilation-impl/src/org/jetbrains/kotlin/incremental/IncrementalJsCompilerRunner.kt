@@ -191,7 +191,9 @@ class IncrementalJsCompilerRunner(
         args: K2JSCompilerArguments,
         caches: IncrementalJsCachesManager,
         services: Services,
-        messageCollector: MessageCollector
+        messageCollector: MessageCollector,
+        allSources: List<File>,
+        isIncremental: Boolean
     ): ExitCode {
         val freeArgsBackup = args.freeArgs
 

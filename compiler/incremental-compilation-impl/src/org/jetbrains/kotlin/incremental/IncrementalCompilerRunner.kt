@@ -300,7 +300,9 @@ abstract class IncrementalCompilerRunner<
         args: Args,
         caches: CacheManager,
         services: Services,
-        messageCollector: MessageCollector
+        messageCollector: MessageCollector,
+        allSources: List<File>,
+        isIncremental: Boolean
     ): ExitCode
 
     protected open fun compileIncrementally(
@@ -361,7 +363,10 @@ abstract class IncrementalCompilerRunner<
             val messageCollectorAdapter = MessageCollectorToOutputItemsCollectorAdapter(bufferingMessageCollector, outputItemsCollector)
 
             exitCode = reporter.measure(buildTimeMode) {
-                runCompiler(sourcesToCompile.toSet(), args, caches, services, messageCollectorAdapter)
+                runCompiler(
+                    sourcesToCompile.toSet(), args, caches, services, messageCollectorAdapter,
+                    allKotlinSources, compilationMode is CompilationMode.Incremental
+                )
             }
 
             val generatedFiles = outputItemsCollector.outputs.map(SimpleOutputItem::toGeneratedFile)

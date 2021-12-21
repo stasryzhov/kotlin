@@ -42,7 +42,6 @@ import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
-import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.IncrementalCompilation
 import org.jetbrains.kotlin.config.Services
@@ -464,7 +463,9 @@ open class IncrementalJvmCompilerRunner(
         args: K2JVMCompilerArguments,
         caches: IncrementalJvmCachesManager,
         services: Services,
-        messageCollector: MessageCollector
+        messageCollector: MessageCollector,
+        allSources: List<File>,
+        isIncremental: Boolean
     ): ExitCode {
         val compiler = K2JVMCompiler()
         val freeArgsBackup = args.freeArgs.toList()
