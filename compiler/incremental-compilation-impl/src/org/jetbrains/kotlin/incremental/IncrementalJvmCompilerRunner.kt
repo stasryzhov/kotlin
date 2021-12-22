@@ -459,14 +459,14 @@ open class IncrementalJvmCompilerRunner(
         }
 
     override fun runCompiler(
-        sourcesToCompile: Set<File>,
+        sourcesToCompile: List<File>,
         args: K2JVMCompilerArguments,
         caches: IncrementalJvmCachesManager,
         services: Services,
         messageCollector: MessageCollector,
         allSources: List<File>,
         isIncremental: Boolean
-    ): ExitCode {
+    ): Pair<ExitCode, Collection<File>> {
         val compiler = K2JVMCompiler()
         val freeArgsBackup = args.freeArgs.toList()
         args.freeArgs += sourcesToCompile.map { it.absolutePath }
@@ -474,7 +474,7 @@ open class IncrementalJvmCompilerRunner(
         val exitCode = compiler.exec(messageCollector, services, args)
         args.freeArgs = freeArgsBackup
         reportPerformanceData(compiler.defaultPerformanceManager)
-        return exitCode
+        return exitCode to sourcesToCompile
     }
 
     override fun performWorkAfterSuccessfulCompilation(caches: IncrementalJvmCachesManager) {

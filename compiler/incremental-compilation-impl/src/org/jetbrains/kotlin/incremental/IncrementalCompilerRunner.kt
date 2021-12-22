@@ -296,14 +296,14 @@ abstract class IncrementalCompilerRunner<
         }
 
     protected abstract fun runCompiler(
-        sourcesToCompile: Set<File>,
+        sourcesToCompile: List<File>,
         args: Args,
         caches: CacheManager,
         services: Services,
         messageCollector: MessageCollector,
         allSources: List<File>,
         isIncremental: Boolean
-    ): ExitCode
+    ): Pair<ExitCode, Collection<File>>
 
     protected open fun compileIncrementally(
         args: Args,
@@ -321,12 +321,12 @@ abstract class IncrementalCompilerRunner<
         val dirtySources = when (compilationMode) {
             is CompilationMode.Incremental -> {
                 buildTimeMode = BuildTime.INCREMENTAL_ITERATION
-                compilationMode.dirtyFiles.toMutableList()
+                compilationMode.dirtyFiles.toMutableLinkedSet()
             }
             is CompilationMode.Rebuild -> {
                 buildTimeMode = BuildTime.NON_INCREMENTAL_ITERATION
                 reporter.addAttribute(compilationMode.reason)
-                allKotlinSources.toMutableList()
+                LinkedHashSet(allKotlinSources)
             }
         }
 
@@ -362,12 +362,16 @@ abstract class IncrementalCompilerRunner<
             val bufferingMessageCollector = BufferingMessageCollector()
             val messageCollectorAdapter = MessageCollectorToOutputItemsCollectorAdapter(bufferingMessageCollector, outputItemsCollector)
 
-            exitCode = reporter.measure(buildTimeMode) {
+            val compiledSources = reporter.measure(buildTimeMode) {
                 runCompiler(
-                    sourcesToCompile.toSet(), args, caches, services, messageCollectorAdapter,
+                    sourcesToCompile, args, caches, services, messageCollectorAdapter,
                     allKotlinSources, compilationMode is CompilationMode.Incremental
                 )
+            }.let { (ec, compiled) ->
+                exitCode = ec
+                compiled
             }
+
 
             val generatedFiles = outputItemsCollector.outputs.map(SimpleOutputItem::toGeneratedFile)
             if (compilationMode is CompilationMode.Incremental) {
@@ -381,7 +385,7 @@ abstract class IncrementalCompilerRunner<
                 }
             }
 
-            reporter.reportCompileIteration(compilationMode is CompilationMode.Incremental, sourcesToCompile, exitCode)
+            reporter.reportCompileIteration(compilationMode is CompilationMode.Incremental, compiledSources, exitCode)
             bufferingMessageCollector.flush(originalMessageCollector)
 
             if (exitCode != ExitCode.OK) break

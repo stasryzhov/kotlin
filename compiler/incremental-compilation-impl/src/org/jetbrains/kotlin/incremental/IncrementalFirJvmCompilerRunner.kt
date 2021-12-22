@@ -28,6 +28,7 @@ import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.GroupingMessageCollector
 import org.jetbrains.kotlin.cli.common.messages.IrMessageCollector
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.cli.common.modules.ModuleBuilder
 import org.jetbrains.kotlin.cli.common.setupCommonArguments
 import org.jetbrains.kotlin.cli.jvm.*
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
@@ -95,14 +96,14 @@ class IncrementalFirJvmCompilerRunner(
 ) {
 
     override fun runCompiler(
-        sourcesToCompile: Set<File>,
+        sourcesToCompile: List<File>,
         args: K2JVMCompilerArguments,
         caches: IncrementalJvmCachesManager,
         services: Services,
         messageCollector: MessageCollector,
         allSources: List<File>,
         isIncremental: Boolean
-    ): ExitCode {
+    ): Pair<ExitCode, Collection<File>> {
 //        val isIncremental = true // TODO
         val collector = GroupingMessageCollector(messageCollector, args.allWarningsAsErrors)
         // from K2JVMCompiler (~)
@@ -116,6 +117,7 @@ class IncrementalFirJvmCompilerRunner(
         val commonSources = args.commonSources?.mapTo(mutableSetOf(), ::File).orEmpty()
 
         val exitCode = ExitCode.OK
+        val allCompiledSources = LinkedHashSet<File>()
         val rootDisposable = Disposer.newDisposable()
 
         try {
@@ -147,14 +149,14 @@ class IncrementalFirJvmCompilerRunner(
             }
 
             val paths = computeKotlinPaths(collector, args)
-            if (collector.hasErrors()) return ExitCode.COMPILATION_ERROR
+            if (collector.hasErrors()) return ExitCode.COMPILATION_ERROR to emptyList()
 
             // -- plugins
             val pluginClasspaths: Iterable<String> = args.pluginClasspaths?.asIterable() ?: emptyList()
             val pluginOptions = args.pluginOptions?.toMutableList() ?: ArrayList()
             // TODO: add scripting support when ready in FIR
             val pluginLoadResult = PluginCliParser.loadPluginsSafe(pluginClasspaths, pluginOptions, configuration)
-            if (pluginLoadResult != ExitCode.OK) return pluginLoadResult
+            if (pluginLoadResult != ExitCode.OK) return pluginLoadResult to emptyList()
             // -- /plugins
 
             with(configuration) {
@@ -163,14 +165,14 @@ class IncrementalFirJvmCompilerRunner(
                 configureAdvancedJvmOptions(args)
                 configureKlibPaths(args)
 
-                args.destination?.let {
-                    val destination = File(it)
-                    if (destination.path.endsWith(".jar")) {
-                        put(JVMConfigurationKeys.OUTPUT_JAR, destination)
-                    } else {
-                        put(JVMConfigurationKeys.OUTPUT_DIRECTORY, destination)
-                    }
+                val destination = File(args.destination ?: ".")
+                if (destination.path.endsWith(".jar")) {
+                    put(JVMConfigurationKeys.OUTPUT_JAR, destination)
+                } else {
+                    put(JVMConfigurationKeys.OUTPUT_DIRECTORY, destination)
                 }
+                addAll(JVMConfigurationKeys.MODULES, listOf(ModuleBuilder(targetId.name, destination.path, targetId.type)))
+
                 configureBaseRoots(args)
                 configureSourceRootsFromSources(allSources, commonSources, args.javaPackagePrefix)
             }
@@ -201,7 +203,6 @@ class IncrementalFirJvmCompilerRunner(
             // !! main class - maybe from cache?
             var mainClassFqName: FqName? = null
 
-            val allCompiledSources = mutableSetOf<File>()
             while (!isIncremental || dirtySources.any() || runWithNoDirtyKotlinSources(caches)) {
 
                 val compilerInput = ModuleCompilerInput(
@@ -212,7 +213,9 @@ class IncrementalFirJvmCompilerRunner(
                     firModules.map { it.session.moduleData }
                 )
 
-                val analysisResults = compileModuleToAnalyzedFir(compilerInput, compilerEnvironment)
+                val analysisResults =
+                    compileModuleToAnalyzedFir(compilerInput, compilerEnvironment, firModules.map { it.session.firProvider.symbolProvider })
+
                 firModules.add(analysisResults)
 
                 // TODO: consider what to do if many compilations find a main class
@@ -220,15 +223,20 @@ class IncrementalFirJvmCompilerRunner(
                     mainClassFqName = findMainClass(analysisResults.fir)
                 }
 
-                if (diagnosticsReporter.hasErrors) {
-                    FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, collector)
-                    return ExitCode.COMPILATION_ERROR
-                }
-
                 allCompiledSources.addAll(dirtySources)
 
+                if (diagnosticsReporter.hasErrors) {
+                    FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, collector)
+                    return ExitCode.COMPILATION_ERROR to allCompiledSources
+                }
+
                 if (!isIncremental) break
-                dirtySources = collectNewDirtyFiles(allCompiledSources, analysisResults, caches, targetId, configuration)
+                dirtySources = collectNewDirtyFiles(allCompiledSources, analysisResults, caches, targetId, configuration).also {
+                    if (it.isNotEmpty()) {
+                        caches.platformCache.markDirty(it)
+                        caches.inputsCache.removeOutputForSourceFiles(it)
+                    }
+                }
             }
 
             val extensions = JvmGeneratorExtensionsImpl(configuration)
@@ -273,12 +281,12 @@ class IncrementalFirJvmCompilerRunner(
             )
         } catch (e: CompilationCanceledException) {
             collector.report(CompilerMessageSeverity.INFO, "Compilation was canceled", null)
-            return ExitCode.OK
+            return ExitCode.OK to allCompiledSources
         } catch (e: RuntimeException) {
             val cause = e.cause
             if (cause is CompilationCanceledException) {
                 collector.report(CompilerMessageSeverity.INFO, "Compilation was canceled", null)
-                return ExitCode.OK
+                return ExitCode.OK to allCompiledSources
             } else {
                 throw e
             }
@@ -286,7 +294,7 @@ class IncrementalFirJvmCompilerRunner(
             collector.flush()
             Disposer.dispose(rootDisposable)
         }
-        return exitCode
+        return exitCode to allCompiledSources
     }
 
     private fun collectNewDirtyFiles(
