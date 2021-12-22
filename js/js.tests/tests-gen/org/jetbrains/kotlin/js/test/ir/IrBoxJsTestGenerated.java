@@ -9805,6 +9805,12 @@ public class IrBoxJsTestGenerated extends AbstractIrBoxJsTest {
         }
 
         @Test
+        @TestMetadata("jsExternalInterfaceVararg.kt")
+        public void testJsExternalInterfaceVararg() throws Exception {
+            runTest("js/js.translator/testData/box/vararg/jsExternalInterfaceVararg.kt");
+        }
+
+        @Test
         @TestMetadata("jsExternalVarargCtor.kt")
         public void testJsExternalVarargCtor() throws Exception {
             runTest("js/js.translator/testData/box/vararg/jsExternalVarargCtor.kt");
