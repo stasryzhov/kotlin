@@ -206,7 +206,7 @@ class IncrementalFirJvmCompilerRunner(
             // !! main class - maybe from cache?
             var mainClassFqName: FqName? = null
 
-            while (!isIncremental || dirtySources.any() || runWithNoDirtyKotlinSources(caches)) {
+            while (true) {
 
                 val compilerInput = ModuleCompilerInput(
                     targetId,
@@ -240,6 +240,7 @@ class IncrementalFirJvmCompilerRunner(
                         caches.inputsCache.removeOutputForSourceFiles(it)
                     }
                 }
+                if (dirtySources.isEmpty()) break;
             }
 
             val extensions = JvmGeneratorExtensionsImpl(configuration)
