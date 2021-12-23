@@ -55,6 +55,7 @@ import org.jetbrains.kotlin.fir.languageVersionSettings
 import org.jetbrains.kotlin.fir.moduleData
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.resolve.providers.impl.FirProviderImpl
+import org.jetbrains.kotlin.fir.scopes.jvm.computeJvmDescriptor
 import org.jetbrains.kotlin.fir.visitors.FirVisitor
 import org.jetbrains.kotlin.incremental.components.ExpectActualTracker
 import org.jetbrains.kotlin.incremental.components.InlineConstTracker
@@ -70,10 +71,12 @@ import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmMetadataVersion
 import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.modules.TargetId
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.SpecialNames
 import org.jetbrains.kotlin.platform.CommonPlatforms
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.jetbrains.kotlin.progress.CompilationCanceledException
 import org.jetbrains.kotlin.resolve.jvm.JvmClassName
+import org.jetbrains.org.objectweb.asm.commons.Method
 import java.io.File
 
 class IncrementalFirJvmCompilerRunner(
@@ -341,26 +344,51 @@ class IncrementalFirJvmCompilerRunner(
                 }
 
                 override fun visitFile(file: FirFile, data: MutableList<MetadataSerializer>) {
-                    withMetadataSerializer(FirMetadataSource.File(file), data) {
-                        super.visitFile(file, data)
-                    }
+//                    val metadata = FirMetadataSource.File(file)
+//                    withMetadataSerializer(metadata, data) {
+//                        super.visitFile(file, data)
+////                        serialize(metadata)
+//                    }
                 }
 
                 override fun visitFunction(function: FirFunction, data: MutableList<MetadataSerializer>) {
-                    withMetadataSerializer(FirMetadataSource.Function(function), data) {
-                        super.visitFunction(function, data)
+//                    val metadata = FirMetadataSource.Function(function)
+//                    withMetadataSerializer(metadata, data) {
+//                        super.visitFunction(function, data)
+////                        val desc = function.computeJvmDescriptor()
+////                        val name = when (function) {
+////                            is FirConstructor -> SpecialNames.INIT
+////                            else -> return@withMetadataSerializer
+////                        }
+////                        bindMethodMetadata(metadata, Method(name.asString(), desc))
+////                        serialize(metadata)
+//                    }
+                }
+
+                override fun visitConstructor(constructor: FirConstructor, data: MutableList<MetadataSerializer>) {
+                    val metadata = FirMetadataSource.Function(constructor)
+                    with (data.first()) {
+                        super.visitConstructor(constructor, data)
+                        bindMethodMetadata(
+                            metadata,
+                            Method(SpecialNames.INIT.asString(), constructor.computeJvmDescriptor(""))
+                        )
+//                        serialize(metadata)
                     }
                 }
 
                 override fun visitProperty(property: FirProperty, data: MutableList<MetadataSerializer>) {
-                    withMetadataSerializer(FirMetadataSource.Property(property), data) {
-                        super.visitProperty(property, data)
-                    }
+//                    val metadata = FirMetadataSource.Property(property)
+//                    withMetadataSerializer(metadata, data) {
+//                        super.visitProperty(property, data)
+////                        serialize(metadata)
+//                    }
                 }
 
                 override fun visitClass(klass: FirClass, data: MutableList<MetadataSerializer>) {
                     val metadata = FirMetadataSource.Class(klass)
                     withMetadataSerializer(metadata, data) {
+                        super.visitClass(klass, data)
                         serialize(metadata)?.let { (classProto, nameTable) ->
                             caches.platformCache.collectClassChangesByMetadata(
                                 JvmClassName.byClassId(klass.classId),
@@ -369,7 +397,6 @@ class IncrementalFirJvmCompilerRunner(
                                 changesCollector
                             )
                         }
-                        super.visitClass(klass, data)
                     }
                 }
             }, mutableListOf())

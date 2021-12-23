@@ -88,7 +88,7 @@ fun makeLocalFirMetadataSerializerForMetadataSource(
     val stringTable = object : JvmStringTable(null), FirElementAwareStringTable {
         override fun getLocalClassIdReplacement(firClass: FirClass): ClassId =
         firClass.symbol.classId
-//            components.classifierStorage.getCachedIrClass(firClass)?.getLocalClassIdReplacement()
+//            components.classifierStorage.getCachedIrClass(firClass)?.getLocalClassIdReplacement() // containingClassForLocal
 //                ?: throw AssertionError("not a local class: ${firClass.symbol.classId}")
     }
 
