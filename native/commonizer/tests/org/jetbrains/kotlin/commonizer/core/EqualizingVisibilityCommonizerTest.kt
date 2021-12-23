@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirHasVisibility
 import org.jetbrains.kotlin.descriptors.Visibilities.Internal
 import org.jetbrains.kotlin.descriptors.Visibilities.Local
@@ -65,7 +64,7 @@ class EqualizingVisibilityCommonizerTest : AbstractCommonizerTest<CirHasVisibili
         Public.toMock(), Local.toMock()
     )
 
-    override fun createCommonizer() = VisibilityCommonizer.equalizing(DefaultCommonizerSettings)
+    override fun createCommonizer() = VisibilityCommonizer.equalizing()
 }
 
 private fun Visibility.toMock() = object : CirHasVisibility {

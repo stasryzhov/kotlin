@@ -9,9 +9,7 @@ import org.jetbrains.kotlin.commonizer.cir.CirExtensionReceiver
 
 class ExtensionReceiverCommonizer(
     private val typeCommonizer: TypeCommonizer
-) : AbstractNullableContextualSingleInvocationCommonizer<CirExtensionReceiver?, ExtensionReceiverCommonizer.Commonized>(
-    typeCommonizer.settings,
-) {
+) : NullableContextualSingleInvocationCommonizer<CirExtensionReceiver?, ExtensionReceiverCommonizer.Commonized> {
 
     data class Commonized(val receiver: CirExtensionReceiver?) {
         companion object {

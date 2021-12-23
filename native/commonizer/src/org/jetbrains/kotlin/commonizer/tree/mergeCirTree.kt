@@ -30,7 +30,7 @@ internal fun mergeCirTree(
     roots: TargetDependent<CirTreeRoot>,
     settings: CommonizerSettings,
 ): CirRootNode {
-    val node = buildRootNode(storageManager, classifiers.commonDependencies, roots.size, settings)
+    val node = buildRootNode(storageManager, classifiers.commonDependencies, roots.size)
     roots.targets.withIndex().forEach { (targetIndex, target) ->
         node.targetDeclarations[targetIndex] = CirRoot.create(target)
         node.buildModules(
@@ -53,7 +53,7 @@ internal fun CirRootNode.buildModules(context: TargetBuildingContext, modules: L
 
 internal fun CirRootNode.buildModule(context: TargetBuildingContext, treeModule: CirTreeModule) {
     val moduleNode = modules.getOrPut(treeModule.module.name) {
-        buildModuleNode(context.storageManager, context.targets, context.commonizationSettings)
+        buildModuleNode(context.storageManager, context.targets)
     }
     moduleNode.targetDeclarations[context.targetIndex] = treeModule.module
     treeModule.packages.fastForEach { pkg -> moduleNode.buildPackage(context, pkg) }
@@ -61,7 +61,7 @@ internal fun CirRootNode.buildModule(context: TargetBuildingContext, treeModule:
 
 internal fun CirModuleNode.buildPackage(context: TargetBuildingContext, treePackage: CirTreePackage) {
     val packageNode = packages.getOrPut(treePackage.pkg.packageName) {
-        buildPackageNode(context.storageManager, context.targets, context.commonizationSettings)
+        buildPackageNode(context.storageManager, context.targets)
     }
     packageNode.targetDeclarations[context.targetIndex] = treePackage.pkg
     treePackage.functions.fastForEach { function -> packageNode.buildFunction(context, function) }
@@ -80,7 +80,6 @@ internal fun CirNodeWithMembers<*, *>.buildClass(
             context.classifiers,
             ParentNode(parent),
             treeClass.id,
-            context.commonizationSettings
         )
     }
     classNode.targetDeclarations[context.targetIndex] = treeClass.clazz
@@ -97,7 +96,7 @@ internal fun CirNodeWithMembers<*, *>.buildFunction(
     val functionNode = functions.getOrPut(
         FunctionApproximationKey.create(function, SignatureBuildingContext(context.memberContext, function))
     ) {
-        buildFunctionNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent), context.commonizationSettings)
+        buildFunctionNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent))
     }
     /* Multiple type substitutions could in result in the same commonization result */
     functionNode.targetDeclarations.set(context.targetIndex, function)
@@ -109,7 +108,7 @@ internal fun CirNodeWithMembers<*, *>.buildProperty(
     val propertyNode = properties.getOrPut(
         PropertyApproximationKey.create(property, SignatureBuildingContext(context.memberContext, property))
     ) {
-        buildPropertyNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent), context.commonizationSettings)
+        buildPropertyNode(context.storageManager, context.targets, context.classifiers, ParentNode(parent))
     }
     /* Multiple type substitutions could in result in the same commonization result */
     propertyNode.targetDeclarations.set(context.targetIndex, property)
@@ -126,7 +125,6 @@ internal fun CirClassNode.buildConstructor(
             context.targets,
             context.classifiers,
             ParentNode(parent),
-            context.commonizationSettings
         )
     }
     /* Multiple type substitutions could in result in the same commonization result */

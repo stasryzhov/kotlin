@@ -13,7 +13,7 @@ import org.jetbrains.kotlin.commonizer.utils.singleDistinctValueOrNull
 
 class TypeArgumentCommonizer(
     private val typeCommonizer: TypeCommonizer
-) : AbstractNullableSingleInvocationCommonizer<CirTypeProjection>(typeCommonizer.settings) {
+) : NullableSingleInvocationCommonizer<CirTypeProjection> {
     override fun invoke(values: List<CirTypeProjection>): CirTypeProjection? {
         /* All values are star projections */
         values.safeCastValues<CirTypeProjection, CirStarTypeProjection>()?.let { return CirStarTypeProjection }

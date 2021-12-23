@@ -8,6 +8,5 @@ package org.jetbrains.kotlin.commonizer.core
 import org.jetbrains.kotlin.commonizer.cir.CirTypeProjection
 
 class TypeArgumentListCommonizer(typeCommonizer: TypeCommonizer) : AbstractListCommonizer<CirTypeProjection, CirTypeProjection>(
-    singleElementCommonizerFactory = { TypeArgumentCommonizer(typeCommonizer).asCommonizer() },
-    typeCommonizer.settings
+    singleElementCommonizerFactory = { TypeArgumentCommonizer(typeCommonizer).asCommonizer() }
 )

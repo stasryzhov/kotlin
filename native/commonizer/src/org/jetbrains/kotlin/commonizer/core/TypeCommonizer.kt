@@ -6,15 +6,13 @@
 package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.*
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.commonizer.mergedtree.CirKnownClassifiers
 import org.jetbrains.kotlin.commonizer.utils.safeCastValues
 
 class TypeCommonizer(
     private val classifiers: CirKnownClassifiers,
-    settings: CommonizerSettings,
     val options: Options = Options.default,
-) : AbstractNullableSingleInvocationCommonizer<CirType>(settings) {
+) : NullableSingleInvocationCommonizer<CirType> {
 
     private val classOrTypeAliasTypeCommonizer = ClassOrTypeAliasTypeCommonizer(this, classifiers)
     private val flexibleTypeCommonizer = FlexibleTypeAssociativeCommonizer(this)
@@ -25,7 +23,7 @@ class TypeCommonizer(
         }
 
         values.safeCastValues<CirType, CirTypeParameterType>()?.let { types ->
-            return TypeParameterTypeCommonizer(settings).commonize(types)
+            return TypeParameterTypeCommonizer.commonize(types)
         }
 
         values.safeCastValues<CirType, CirFlexibleType>()?.let { types ->
@@ -73,7 +71,7 @@ class TypeCommonizer(
 
     fun withOptions(options: Options): TypeCommonizer {
         return if (this.options == options) this
-        else TypeCommonizer(classifiers, settings, options)
+        else TypeCommonizer(classifiers, options)
     }
 
     inline fun withOptions(createNewOptions: Options.() -> Options): TypeCommonizer {
@@ -81,9 +79,7 @@ class TypeCommonizer(
     }
 }
 
-private class TypeParameterTypeCommonizer(
-    settings: CommonizerSettings
-) : AbstractAssociativeCommonizer<CirTypeParameterType>(settings) {
+private object TypeParameterTypeCommonizer : AssociativeCommonizer<CirTypeParameterType> {
     override fun commonize(first: CirTypeParameterType, second: CirTypeParameterType): CirTypeParameterType? {
         // Real type parameter commonization is performed in TypeParameterCommonizer.
         // Here it is enough to check that type parameter indices and nullability are equal.
@@ -94,7 +90,7 @@ private class TypeParameterTypeCommonizer(
 
 private class FlexibleTypeAssociativeCommonizer(
     private val typeCommonizer: TypeCommonizer
-) : AbstractNullableSingleInvocationCommonizer<CirFlexibleType>(typeCommonizer.settings) {
+) : NullableSingleInvocationCommonizer<CirFlexibleType> {
     override fun invoke(values: List<CirFlexibleType>): CirFlexibleType? {
         val lowerBound = typeCommonizer(values.map { it.lowerBound }) ?: return null
         val upperBound = typeCommonizer(values.map { it.upperBound }) ?: return null

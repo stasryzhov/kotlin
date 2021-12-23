@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirContainingClass
 import org.jetbrains.kotlin.commonizer.cir.CirFunctionOrProperty
 import org.jetbrains.kotlin.commonizer.cir.CirHasVisibility
@@ -47,7 +46,7 @@ abstract class LoweringVisibilityCommonizerTest(
         Public.toMock(), Local.toMock()
     )
 
-    final override fun createCommonizer() = VisibilityCommonizer.lowering(DefaultCommonizerSettings)
+    final override fun createCommonizer() = VisibilityCommonizer.lowering()
 
     protected fun Visibility.toMock() = object : CirFunctionOrProperty {
         override val annotations get() = unsupported()

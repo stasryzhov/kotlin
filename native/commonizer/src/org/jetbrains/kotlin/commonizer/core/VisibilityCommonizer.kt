@@ -7,20 +7,14 @@ package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.CirFunctionOrProperty
 import org.jetbrains.kotlin.commonizer.cir.CirHasVisibility
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.descriptors.Visibility
 
-abstract class VisibilityCommonizer(
-    override val settings: CommonizerSettings,
-) : Commonizer<CirHasVisibility, Visibility> {
+abstract class VisibilityCommonizer : Commonizer<CirHasVisibility, Visibility> {
 
     companion object {
-        fun lowering(settings: CommonizerSettings): VisibilityCommonizer =
-            LoweringVisibilityCommonizer(settings)
-
-        fun equalizing(settings: CommonizerSettings): VisibilityCommonizer =
-            EqualizingVisibilityCommonizer(settings)
+        fun lowering(): VisibilityCommonizer = LoweringVisibilityCommonizer()
+        fun equalizing(): VisibilityCommonizer = EqualizingVisibilityCommonizer()
     }
 
     private var temp: Visibility? = null
@@ -51,9 +45,7 @@ abstract class VisibilityCommonizer(
  * Choose the lowest possible visibility ignoring private for all given member descriptors.
  * If at least one member descriptor is virtual, then the commonizer succeeds only if all visibilities are equal.
  */
-private class LoweringVisibilityCommonizer(
-    commonizationOptions: CommonizerSettings,
-) : VisibilityCommonizer(commonizationOptions) {
+private class LoweringVisibilityCommonizer : VisibilityCommonizer() {
     private var atLeastOneVirtualCallableMet = false
     private var atLeastTwoVisibilitiesMet = false
 
@@ -81,9 +73,7 @@ private class LoweringVisibilityCommonizer(
 /**
  * Make sure that visibilities of all member descriptors are equal and are not private according to [Visibilities.isPrivate].
  */
-private class EqualizingVisibilityCommonizer(
-    commonizationOptions: CommonizerSettings
-) : VisibilityCommonizer(commonizationOptions) {
+private class EqualizingVisibilityCommonizer : VisibilityCommonizer() {
     override fun canBeCommonized(next: CirHasVisibility) = true
 
     override fun getNext(current: Visibility, next: Visibility) =

@@ -5,12 +5,9 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.descriptors.Modality
 
-class ModalityCommonizer(
-    override val settings: CommonizerSettings,
-) : Commonizer<Modality, Modality> {
+class ModalityCommonizer : Commonizer<Modality, Modality> {
     private var temp: Modality? = null
     private var error = false
 

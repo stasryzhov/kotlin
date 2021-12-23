@@ -5,18 +5,19 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
+import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.commonizer.CommonizerTarget
 import org.jetbrains.kotlin.commonizer.allLeaves
 import org.jetbrains.kotlin.commonizer.cir.*
+import org.jetbrains.kotlin.commonizer.cli.PlatformIntegers
 import org.jetbrains.kotlin.commonizer.mergedtree.CirKnownClassifiers
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
-import org.jetbrains.kotlin.commonizer.cir.expandedType
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
 
 class TypeAliasCommonizer(
     typeCommonizer: TypeCommonizer,
     private val classifiers: CirKnownClassifiers,
-) : AbstractNullableSingleInvocationCommonizer<CirTypeAlias>(typeCommonizer.settings) {
+    private val settings: CommonizerSettings,
+) : NullableSingleInvocationCommonizer<CirTypeAlias> {
 
     private val typeCommonizer = typeCommonizer.withOptions {
         withBackwardsTypeAliasSubstitutionEnabled(false)
@@ -31,7 +32,7 @@ class TypeAliasCommonizer(
 
         val underlyingType = typeCommonizer.invoke(values.map { it.underlyingType }) as? CirClassOrTypeAliasType ?: return null
 
-        val visibility = VisibilityCommonizer.lowering(settings).commonize(values) ?: return null
+        val visibility = VisibilityCommonizer.lowering().commonize(values) ?: return null
 
         return CirTypeAlias.create(
             name = name,
@@ -40,7 +41,7 @@ class TypeAliasCommonizer(
             underlyingType = underlyingType,
             expandedType = underlyingType.expandedType(),
             annotations = listOfNotNull(
-                createUnsafeNumberAnnotationIfNecessary(classifiers.classifierIndices.targets, values, settings)
+                createUnsafeNumberAnnotationIfNecessary(classifiers.classifierIndices.targets, values, settings = settings)
             )
         )
     }
@@ -51,10 +52,13 @@ private fun createUnsafeNumberAnnotationIfNecessary(
     values: List<CirTypeAlias>,
     settings: CommonizerSettings,
 ): CirAnnotation? {
+    if (settings.getSetting(PlatformIntegers))
+        return null
+
     val expandedTypes = values.map { it.expandedType.classifierId }
 
     // All typealias have to be potentially substitutable (aka have to be some kind of number type)
-    if (!expandedTypes.all { OptimisticNumbersTypeCommonizer(settings).isOptimisticallySubstitutable(it) }) {
+    if (!expandedTypes.all { OptimisticNumbersTypeCommonizer.isOptimisticallySubstitutable(it) }) {
         return null
     }
 

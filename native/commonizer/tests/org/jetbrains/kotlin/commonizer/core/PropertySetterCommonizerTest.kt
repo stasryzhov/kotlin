@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirPropertySetter
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.junit.Test
@@ -18,7 +17,7 @@ class PropertySetterCommonizerTest {
     @Test
     fun `missing only`() {
         assertNull(
-            createCommonizer().commonize(null, null),
+            PropertySetterCommonizer.commonize(null, null),
             "Expected no property setting being commonized from nulls"
         )
     }
@@ -26,8 +25,8 @@ class PropertySetterCommonizerTest {
     @Test
     fun `missing and public`() {
         assertSame(
-            createCommonizer().privateFallbackSetter,
-            createCommonizer().commonize(null, CirPropertySetter.createDefaultNoAnnotations(Visibilities.Public))
+            PropertySetterCommonizer.privateFallbackSetter,
+            PropertySetterCommonizer.commonize(null, CirPropertySetter.createDefaultNoAnnotations(Visibilities.Public))
         )
     }
 
@@ -35,7 +34,7 @@ class PropertySetterCommonizerTest {
     fun `public public`() {
         assertEquals(
             CirPropertySetter.createDefaultNoAnnotations(Visibilities.Public),
-            createCommonizer().commonize(
+            PropertySetterCommonizer.commonize(
                 CirPropertySetter.createDefaultNoAnnotations(Visibilities.Public),
                 CirPropertySetter.createDefaultNoAnnotations(Visibilities.Public)
             )
@@ -46,7 +45,7 @@ class PropertySetterCommonizerTest {
     fun `internal internal`() {
         assertEquals(
             CirPropertySetter.createDefaultNoAnnotations(Visibilities.Internal),
-            createCommonizer().commonize(
+            PropertySetterCommonizer.commonize(
                 CirPropertySetter.createDefaultNoAnnotations(Visibilities.Internal),
                 CirPropertySetter.createDefaultNoAnnotations(Visibilities.Internal)
             )
@@ -56,13 +55,11 @@ class PropertySetterCommonizerTest {
     @Test
     fun `internal public`() {
         assertEquals(
-            createCommonizer().privateFallbackSetter,
-            createCommonizer().commonize(
+            PropertySetterCommonizer.privateFallbackSetter,
+            PropertySetterCommonizer.commonize(
                 CirPropertySetter.createDefaultNoAnnotations(Visibilities.Internal),
                 CirPropertySetter.createDefaultNoAnnotations(Visibilities.Public)
             )
         )
     }
-
-    fun createCommonizer(): PropertySetterCommonizer = PropertySetterCommonizer(DefaultCommonizerSettings)
 }

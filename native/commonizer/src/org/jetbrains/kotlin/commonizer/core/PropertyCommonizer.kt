@@ -12,10 +12,9 @@ import org.jetbrains.kotlin.commonizer.core.PropertyCommonizer.ConstCommonizatio
 import org.jetbrains.kotlin.descriptors.Modality
 
 class PropertyCommonizer(
-    functionOrPropertyBaseCommonizer: FunctionOrPropertyBaseCommonizer,
-) : AbstractStandardCommonizer<CirProperty, CirProperty?>(functionOrPropertyBaseCommonizer.settings) {
-    private val propertySetterCommonizer = PropertySetterCommonizer(settings)
-    private val setter = propertySetterCommonizer.asNullableCommonizer()
+    functionOrPropertyBaseCommonizer: FunctionOrPropertyBaseCommonizer
+) : AbstractStandardCommonizer<CirProperty, CirProperty?>() {
+    private val setter = PropertySetterCommonizer.asNullableCommonizer()
     private var isExternal = true
     private lateinit var constCommonizationState: ConstCommonizationState
     private val functionOrPropertyBaseCommonizer = functionOrPropertyBaseCommonizer.asCommonizer()
@@ -24,7 +23,7 @@ class PropertyCommonizer(
         val functionOrPropertyBase = functionOrPropertyBaseCommonizer.result ?: return null
 
         val setter = setter.result?.takeIf { setter ->
-            setter !== propertySetterCommonizer.privateFallbackSetter || functionOrPropertyBase.modality == Modality.FINAL
+            setter !== PropertySetterCommonizer.privateFallbackSetter || functionOrPropertyBase.modality == Modality.FINAL
         }
 
         val constCommonizationState = constCommonizationState

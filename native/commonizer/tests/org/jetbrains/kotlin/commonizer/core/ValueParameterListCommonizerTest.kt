@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirValueParameter
 import org.jetbrains.kotlin.commonizer.utils.MOCK_CLASSIFIERS
 import org.junit.Test
@@ -157,7 +156,7 @@ class ValueParameterListCommonizerTest : AbstractCommonizerTest<List<CirValuePar
         )
     }
 
-    override fun createCommonizer() = ValueParameterListCommonizer(TypeCommonizer(MOCK_CLASSIFIERS, DefaultCommonizerSettings))
+    override fun createCommonizer() = ValueParameterListCommonizer(TypeCommonizer(MOCK_CLASSIFIERS))
 
     override fun areEqual(a: List<CirValueParameter>?, b: List<CirValueParameter>?): Boolean {
         if (a === b)

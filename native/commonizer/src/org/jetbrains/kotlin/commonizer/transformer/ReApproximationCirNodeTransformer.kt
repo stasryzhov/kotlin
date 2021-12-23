@@ -17,7 +17,6 @@ internal class ReApproximationCirNodeTransformer(
     private val storageManager: StorageManager,
     private val classifiers: CirKnownClassifiers,
     private val signatureBuildingContextProvider: SignatureBuildingContextProvider,
-    private val settings: CommonizerSettings,
 ) : CirNodeTransformer {
 
     internal class SignatureBuildingContextProvider(
@@ -67,7 +66,7 @@ internal class ReApproximationCirNodeTransformer(
 
         val approximationKey = FunctionApproximationKey.create(functionAtIndex, signatureBuildingContextProvider(context, functionAtIndex))
         val newNode = parent.functions.getOrPut(approximationKey) {
-            buildFunctionNode(storageManager, parent.targetDeclarations.size, classifiers, ParentNode(parent), settings)
+            buildFunctionNode(storageManager, parent.targetDeclarations.size, classifiers, ParentNode(parent))
         }
 
         // Move declaration
@@ -84,7 +83,7 @@ internal class ReApproximationCirNodeTransformer(
 
         val approximationKey = PropertyApproximationKey.create(propertyAtIndex, signatureBuildingContextProvider(context, propertyAtIndex))
         val newNode = parent.properties.getOrPut(approximationKey) {
-            buildPropertyNode(storageManager, parent.targetDeclarations.size, classifiers, ParentNode(parent), settings)
+            buildPropertyNode(storageManager, parent.targetDeclarations.size, classifiers, ParentNode(parent))
         }
 
         // Move declaration
@@ -105,7 +104,7 @@ internal class ReApproximationCirNodeTransformer(
             ConstructorApproximationKey.create(constructorAtIndex, signatureBuildingContextProvider(context, constructorAtIndex))
 
         val newNode = parent.constructors.getOrPut(approximationKey) {
-            buildClassConstructorNode(storageManager, parent.targetDeclarations.size, classifiers, ParentNode(parent), settings)
+            buildClassConstructorNode(storageManager, parent.targetDeclarations.size, classifiers, ParentNode(parent))
         }
 
         // Move declaration

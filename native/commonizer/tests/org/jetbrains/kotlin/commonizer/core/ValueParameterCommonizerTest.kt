@@ -138,7 +138,7 @@ class ValueParameterCommonizerTest : AbstractCommonizerTest<CirValueParameter, C
         mockValueParam("kotlin/String", declaresDefaultValue = true)
     )
 
-    override fun createCommonizer() = ValueParameterCommonizer(TypeCommonizer(MOCK_CLASSIFIERS, DefaultCommonizerSettings))
+    override fun createCommonizer() = ValueParameterCommonizer(TypeCommonizer(MOCK_CLASSIFIERS))
 
     override fun areEqual(a: CirValueParameter?, b: CirValueParameter?) =
         (a === b) || (a != null && b != null && areEqual(MOCK_CLASSIFIERS, a, b))

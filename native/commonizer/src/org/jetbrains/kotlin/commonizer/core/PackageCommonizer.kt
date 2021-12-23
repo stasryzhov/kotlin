@@ -7,11 +7,8 @@ package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.CirPackage
 import org.jetbrains.kotlin.commonizer.cir.CirPackageName
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
 
-class PackageCommonizer(
-    commonizationOptions: CommonizerSettings,
-) : AbstractStandardCommonizer<CirPackage, CirPackage>(commonizationOptions) {
+class PackageCommonizer : AbstractStandardCommonizer<CirPackage, CirPackage>() {
     private lateinit var packageName: CirPackageName
 
     override fun commonizationResult() = CirPackage.create(packageName = packageName)

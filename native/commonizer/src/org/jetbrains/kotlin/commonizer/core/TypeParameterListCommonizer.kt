@@ -8,6 +8,5 @@ package org.jetbrains.kotlin.commonizer.core
 import org.jetbrains.kotlin.commonizer.cir.CirTypeParameter
 
 class TypeParameterListCommonizer(typeCommonizer: TypeCommonizer) : AbstractListCommonizer<CirTypeParameter, CirTypeParameter>(
-    singleElementCommonizerFactory = { TypeParameterCommonizer(typeCommonizer) },
-    typeCommonizer.settings,
+    singleElementCommonizerFactory = { TypeParameterCommonizer(typeCommonizer) }
 )

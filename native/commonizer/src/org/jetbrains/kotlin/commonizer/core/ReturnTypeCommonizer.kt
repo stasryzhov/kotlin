@@ -11,9 +11,7 @@ import org.jetbrains.kotlin.commonizer.cir.CirType
 
 class ReturnTypeCommonizer(
     private val typeCommonizer: TypeCommonizer,
-) : AbstractNullableContextualSingleInvocationCommonizer<CirFunctionOrProperty, CirType>(
-    typeCommonizer.settings,
-) {
+) : NullableContextualSingleInvocationCommonizer<CirFunctionOrProperty, CirType> {
     override fun invoke(values: List<CirFunctionOrProperty>): CirType? {
         if (values.isEmpty()) return null
         val isTopLevel = values.all { it.containingClass == null }

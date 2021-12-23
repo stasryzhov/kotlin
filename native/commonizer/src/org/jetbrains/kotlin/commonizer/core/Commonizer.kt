@@ -5,13 +5,7 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
-
-interface SettingsAware {
-    val settings: CommonizerSettings
-}
-
-interface Commonizer<in T, out R> : SettingsAware {
+interface Commonizer<in T, out R> {
     val result: R
     fun commonizeWith(next: T): Boolean
 }
@@ -21,9 +15,7 @@ fun <T, R> Commonizer<T, R>.commonize(values: List<T>): R? {
     return result
 }
 
-abstract class AbstractStandardCommonizer<T, R>(
-    override val settings: CommonizerSettings,
-) : Commonizer<T, R> {
+abstract class AbstractStandardCommonizer<T, R> : Commonizer<T, R> {
     private enum class State {
         EMPTY,
         ERROR,

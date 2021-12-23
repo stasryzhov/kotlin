@@ -5,15 +5,9 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
-
-interface AssociativeCommonizer<T> : SettingsAware {
+interface AssociativeCommonizer<T> {
     fun commonize(first: T, second: T): T?
 }
-
-abstract class AbstractAssociativeCommonizer<T>(
-    override val settings: CommonizerSettings,
-) : AssociativeCommonizer<T>
 
 fun <T> AssociativeCommonizer<T>.commonize(values: List<T>): T? {
     if (values.isEmpty()) return null
@@ -25,7 +19,7 @@ fun <T : Any> AssociativeCommonizer<T>.asCommonizer(): AssociativeCommonizerAdap
 
 open class AssociativeCommonizerAdapter<T : Any>(
     private val commonizer: AssociativeCommonizer<T>
-) : AbstractStandardCommonizer<T, T>(commonizer.settings) {
+) : AbstractStandardCommonizer<T, T>() {
 
     private var _result: T? = null
 
@@ -59,9 +53,6 @@ open class NullableAssociativeCommonizerAdapter<T>(
 
     override val result: T?
         get() = _result
-
-    override val settings: CommonizerSettings
-        get() = commonizer.settings
 
     override fun commonizeWith(next: T?): Boolean {
         val currentResult = _result
