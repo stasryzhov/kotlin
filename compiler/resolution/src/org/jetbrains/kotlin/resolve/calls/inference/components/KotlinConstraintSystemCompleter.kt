@@ -14,7 +14,6 @@ import org.jetbrains.kotlin.resolve.calls.model.*
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.model.TypeConstructorMarker
 import org.jetbrains.kotlin.types.model.TypeVariableMarker
-import org.jetbrains.kotlin.types.model.TypeVariableTypeConstructorMarker
 import org.jetbrains.kotlin.types.model.safeSubstitute
 import org.jetbrains.kotlin.types.typeUtil.asTypeProjection
 import org.jetbrains.kotlin.utils.addIfNotNull
@@ -317,8 +316,9 @@ class KotlinConstraintSystemCompleter(
         postponedArguments: List<PostponedResolvedAtom>
     ) = postponedArguments.firstOrNull { argument -> argument.inputTypes.all { containsOnlyFixedOrPostponedVariables(it) } }
 
-    private fun ConstraintSystemCompletionContext.findPostponedArgumentWithFixedInputTypes(postponedArguments: List<PostponedResolvedAtom>) =
-        postponedArguments.firstOrNull { argument -> argument.inputTypes.all { containsOnlyFixedVariables(it) } }
+    private fun ConstraintSystemCompletionContext.findPostponedArgumentWithFixedInputTypes(
+        postponedArguments: List<PostponedResolvedAtom>
+    ) = postponedArguments.firstOrNull { argument -> argument.inputTypes.all { containsOnlyFixedVariables(it) } }
 
     private fun fixVariable(
         c: ConstraintSystemCompletionContext,
