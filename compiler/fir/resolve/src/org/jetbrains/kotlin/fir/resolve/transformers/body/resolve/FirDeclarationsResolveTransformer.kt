@@ -826,6 +826,7 @@ open class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransfor
             components.returnTypeCalculator,
             session.typeApproximator,
             dataFlowAnalyzer,
+            components.context
         )
         lambda.transformSingle(writer, expectedTypeRef.coneTypeSafe<ConeKotlinType>()?.toExpectedType())
 

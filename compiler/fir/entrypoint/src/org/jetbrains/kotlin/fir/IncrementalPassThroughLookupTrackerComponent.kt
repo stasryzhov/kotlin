@@ -27,7 +27,8 @@ class IncrementalPassThroughLookupTrackerComponent(
         val definedSource = fileSource ?: source ?: throw AssertionError("Cannot record lookup for \"$name\" without a source")
         val path = sourceToFilePathsCache.getOrPut(definedSource) {
             sourceToFilePath(definedSource) ?:
-            return
+                // TODO: the lookup by non-file source mostly doesn't work for the LT, so we cannot afford null file sources here
+                return
         }
         val position = if (requiresPosition && source != null && source is KtPsiSourceElement) {
             getLineAndColumnInPsiFile(source.psi.containingFile, source.psi.textRange).let { Position(it.line, it.column) }
