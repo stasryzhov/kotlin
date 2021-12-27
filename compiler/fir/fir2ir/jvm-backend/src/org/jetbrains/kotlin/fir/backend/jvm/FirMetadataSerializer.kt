@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.config.*
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.backend.Fir2IrComponents
 import org.jetbrains.kotlin.fir.backend.FirMetadataSource
+import org.jetbrains.kotlin.fir.containingClassForLocal
 import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.declarations.builder.buildAnonymousFunction
 import org.jetbrains.kotlin.fir.declarations.builder.buildProperty
@@ -26,12 +27,10 @@ import org.jetbrains.kotlin.fir.diagnostics.ConeIntermediateDiagnostic
 import org.jetbrains.kotlin.fir.languageVersionSettings
 import org.jetbrains.kotlin.fir.packageFqName
 import org.jetbrains.kotlin.fir.resolve.ScopeSession
+import org.jetbrains.kotlin.fir.resolve.toFirRegularClass
 import org.jetbrains.kotlin.fir.serialization.FirElementAwareStringTable
 import org.jetbrains.kotlin.fir.serialization.FirElementSerializer
-import org.jetbrains.kotlin.fir.symbols.impl.FirAnonymousFunctionSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirDelegateFieldSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirPropertyAccessorSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
+import org.jetbrains.kotlin.fir.symbols.impl.*
 import org.jetbrains.kotlin.fir.types.*
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
@@ -65,14 +64,15 @@ fun makeFirMetadataSerializerForIrClass(
         approximator, context.typeMapper, components
     )
     return FirMetadataSerializer(
-        serializationBindings,
         context.state.globalSerializationBindings,
+        serializationBindings,
         firSerializerExtension,
         approximator,
         makeElementSerializer(irClass.metadata, components.session, components.scopeSession, firSerializerExtension, approximator, parent)
     )
 }
 
+@OptIn(LookupTagInternals::class)
 fun makeLocalFirMetadataSerializerForMetadataSource(
     metadata: MetadataSource?,
     session: FirSession,
@@ -87,9 +87,8 @@ fun makeLocalFirMetadataSerializerForMetadataSource(
 
     val stringTable = object : JvmStringTable(null), FirElementAwareStringTable {
         override fun getLocalClassIdReplacement(firClass: FirClass): ClassId =
-        firClass.symbol.classId
-//            components.classifierStorage.getCachedIrClass(firClass)?.getLocalClassIdReplacement() // containingClassForLocal
-//                ?: throw AssertionError("not a local class: ${firClass.symbol.classId}")
+            ((firClass as? FirRegularClass)?.containingClassForLocal()?.toFirRegularClass(session) ?: firClass)
+                .symbol.classId
     }
 
     val firSerializerExtension = FirJvmSerializerExtension(
@@ -107,8 +106,8 @@ fun makeLocalFirMetadataSerializerForMetadataSource(
         stringTable
     )
     return FirMetadataSerializer(
-        serializationBindings,
         globalSerializationBindings,
+        serializationBindings,
         firSerializerExtension,
         approximator,
         makeElementSerializer(metadata, session, scopeSession, firSerializerExtension, approximator, parent)
