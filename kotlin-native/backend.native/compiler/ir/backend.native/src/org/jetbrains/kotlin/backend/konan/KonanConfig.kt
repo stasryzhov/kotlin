@@ -82,17 +82,21 @@ class KonanConfig(val project: Project, val configuration: CompilerConfiguration
     }
     val destroyRuntimeMode: DestroyRuntimeMode get() = configuration.get(KonanConfigKeys.DESTROY_RUNTIME_MODE)!!
     val gc: GC by lazy {
+        /*
         val configGc = configuration.get(KonanConfigKeys.GARBAGE_COLLECTOR)
+        val supportsThreads = target.supportsThreads()
         val (gcFallbackReason, realGc) = when {
-            configGc == GC.CONCURRENT_MARK_AND_SWEEP && !target.supportsThreads() ->
+            configGc == GC.CONCURRENT_MARK_AND_SWEEP && !supportsThreads ->
                 "Concurrent mark and sweep gc is not supported for this target. Fallback to Same thread mark and sweep is done" to GC.SAME_THREAD_MARK_AND_SWEEP
-            configGc == null -> null to GC.SAME_THREAD_MARK_AND_SWEEP
+            configGc == null -> null to GC.CONCURRENT_MARK_AND_SWEEP
             else -> null to configGc
         }
         if (gcFallbackReason != null) {
             configuration.report(CompilerMessageSeverity.STRONG_WARNING, gcFallbackReason)
         }
         realGc
+        */
+        GC.CONCURRENT_MARK_AND_SWEEP
     }
     val runtimeAssertsMode: RuntimeAssertsMode get() = configuration.get(BinaryOptions.runtimeAssertionsMode) ?: RuntimeAssertsMode.IGNORE
     val workerExceptionHandling: WorkerExceptionHandling get() = configuration.get(KonanConfigKeys.WORKER_EXCEPTION_HANDLING)!!
