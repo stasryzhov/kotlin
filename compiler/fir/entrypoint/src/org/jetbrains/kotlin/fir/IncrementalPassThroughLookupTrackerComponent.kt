@@ -24,6 +24,8 @@ class IncrementalPassThroughLookupTrackerComponent(
     private val sourceToFilePathsCache = ConcurrentHashMap<KtSourceElement, String>()
 
     override fun recordLookup(name: Name, inScopes: List<String>, source: KtSourceElement?, fileSource: KtSourceElement?) {
+        assert(fileSource != null || source is KtPsiSourceElement) // finding file for a source only possible for PSI, here it means
+        // that we allow null for file source only for PSI-only "sources", currently - java ones
         val definedSource = fileSource ?: source ?: throw AssertionError("Cannot record lookup for \"$name\" without a source")
         val path = sourceToFilePathsCache.getOrPut(definedSource) {
             sourceToFilePath(definedSource) ?:

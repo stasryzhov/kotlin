@@ -373,7 +373,11 @@ private inline fun <T : FirExpression> BodyResolveComponents.transformExpression
     }
 }
 
-fun FirCheckedSafeCallSubject.propagateTypeFromOriginalReceiver(nullableReceiverExpression: FirExpression, session: FirSession) {
+fun FirCheckedSafeCallSubject.propagateTypeFromOriginalReceiver(
+    nullableReceiverExpression: FirExpression,
+    session: FirSession,
+    file: FirFile
+) {
     // If the receiver expression is smartcast to `null`, it would have `Nothing?` as its type, which may not have members called by user
     // code. Hence, we fallback to the type before intersecting with `Nothing?`.
     val receiverType = ((nullableReceiverExpression as? FirExpressionWithSmartcastToNull)
@@ -387,12 +391,13 @@ fun FirCheckedSafeCallSubject.propagateTypeFromOriginalReceiver(nullableReceiver
     val resolvedTypeRef =
         typeRef.resolvedTypeFromPrototype(expandedReceiverType.makeConeTypeDefinitelyNotNullOrNotNull(session.typeContext))
     replaceTypeRef(resolvedTypeRef)
-    session.lookupTracker?.recordTypeResolveAsLookup(resolvedTypeRef, source, null)
+    session.lookupTracker?.recordTypeResolveAsLookup(resolvedTypeRef, source, file.source)
 }
 
 fun FirSafeCallExpression.propagateTypeFromQualifiedAccessAfterNullCheck(
     nullableReceiverExpression: FirExpression,
     session: FirSession,
+    file: FirFile,
 ) {
     val receiverType = nullableReceiverExpression.typeRef.coneTypeSafe<ConeKotlinType>()
     val typeAfterNullCheck = regularQualifiedAccess.expressionTypeOrUnitForAssignment() ?: return
@@ -409,7 +414,7 @@ fun FirSafeCallExpression.propagateTypeFromQualifiedAccessAfterNullCheck(
 
     val resolvedTypeRef = typeRef.resolvedTypeFromPrototype(resultingType)
     replaceTypeRef(resolvedTypeRef)
-    session.lookupTracker?.recordTypeResolveAsLookup(resolvedTypeRef, source, null)
+    session.lookupTracker?.recordTypeResolveAsLookup(resolvedTypeRef, source, file.source)
 }
 
 private fun FirQualifiedAccess.expressionTypeOrUnitForAssignment(): ConeKotlinType? {

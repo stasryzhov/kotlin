@@ -105,7 +105,9 @@ class PostponedArgumentsAnalyzer(
                 }
             }
             replaceTypeRef(resolvedTypeRef)
-            resolutionContext.session.lookupTracker?.recordTypeResolveAsLookup(resolvedTypeRef, source, null)
+            resolutionContext.session.lookupTracker?.recordTypeResolveAsLookup(
+                resolvedTypeRef, source, resolutionContext.bodyResolveComponents.file.source
+            )
         }
     }
 
