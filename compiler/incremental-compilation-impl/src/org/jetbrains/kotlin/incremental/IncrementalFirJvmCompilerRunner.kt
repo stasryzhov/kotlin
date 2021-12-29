@@ -48,7 +48,10 @@ import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.backend.Fir2IrConverter
 import org.jetbrains.kotlin.fir.backend.FirMetadataSource
-import org.jetbrains.kotlin.fir.backend.jvm.*
+import org.jetbrains.kotlin.fir.backend.jvm.Fir2IrJvmSpecialAnnotationSymbolProvider
+import org.jetbrains.kotlin.fir.backend.jvm.FirJvmKotlinMangler
+import org.jetbrains.kotlin.fir.backend.jvm.FirJvmVisibilityConverter
+import org.jetbrains.kotlin.fir.backend.jvm.makeLocalFirMetadataSerializerForMetadataSource
 import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.declarations.utils.classId
 import org.jetbrains.kotlin.fir.languageVersionSettings
@@ -217,7 +220,9 @@ class IncrementalFirJvmCompilerRunner(
                 )
 
                 val analysisResults =
-                    compileModuleToAnalyzedFir(compilerInput, compilerEnvironment, firModules.map { it.session.firProvider.symbolProvider })
+                    compileModuleToAnalyzedFir(
+                        compilerInput, compilerEnvironment, firModules.map { it.session.firProvider.symbolProvider }, diagnosticsReporter
+                    )
 
                 firModules.add(analysisResults)
 
