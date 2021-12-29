@@ -185,6 +185,7 @@ abstract class BasicWasmBoxTest(
             exportedDeclarations = setOf(FqName.fromSegments(listOfNotNull(testPackage, testFunction))),
             propertyLazyInitialization = directives.contains(JsEnvironmentConfigurationDirectives.PROPERTY_LAZY_INITIALIZATION.name),
             emitNameSection = true,
+            dceWasm = true,
         )
 
         outputWatFile.write(compilerResult.wat)
