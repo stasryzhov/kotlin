@@ -66,3 +66,4 @@ public final class HashMapEx</*0*/ K, /*1*/ V> : java.util.HashMap<K, V>, ExtMap
     invisible_fake open override /*1*/ /*fake_override*/ fun transfer(/*0*/ newTable: kotlin.Array<(out) java.util.HashMap.Entry<(raw) kotlin.Any!, (raw) kotlin.Any!>!>!, /*1*/ rehash: kotlin.Boolean): kotlin.Unit
     invisible_fake open override /*1*/ /*fake_override*/ fun writeObject(/*0*/ s: java.io.ObjectOutputStream!): kotlin.Unit
 }
+

@@ -24,3 +24,4 @@ public final class Base</*0*/ T : [ERROR : Cyclic upper bounds]> : kotlin.collec
     public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
     invisible_fake open override /*1*/ /*fake_override*/ fun writeObject(/*0*/ s: java.io.ObjectOutputStream!): kotlin.Unit
 }
+
