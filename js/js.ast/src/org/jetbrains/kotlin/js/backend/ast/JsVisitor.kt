@@ -94,7 +94,7 @@ abstract class JsVisitor {
             visitElement(x)
 
     open fun visitLoop(x: JsLoop): Unit =
-        visitElement(x)
+            visitElement(x)
 
     open fun visitNameRef(nameRef: JsNameRef): Unit =
             visitElement(nameRef)

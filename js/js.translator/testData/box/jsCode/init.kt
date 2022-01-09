@@ -1,5 +1,3 @@
-// TARGET_BACKEND: JS_IR
-
 package foo
 
 class A {
