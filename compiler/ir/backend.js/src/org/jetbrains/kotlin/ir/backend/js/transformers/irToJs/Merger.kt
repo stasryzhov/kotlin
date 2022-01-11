@@ -63,7 +63,7 @@ class Merger(
         }
 
         if (crossModuleReferences.exports.isNotEmpty()) {
-            val internalModuleName = JsName("_", false)
+            val internalModuleName = makeInternalModuleName()
 
             val createExportBlock = jsAssignment(
                 JsNameRef("\$crossModule\$", internalModuleName.makeRef()),
@@ -74,8 +74,7 @@ class Merger(
             crossModuleReferences.exports.entries.forEach { (tag, name) ->
                 val internalName = nameMap[tag] ?: error("Missing name for declaration '$tag'")
                 additionalExports += jsAssignment(
-                    JsNameRef(name, JsNameRef("\$crossModule\$", JsName("_", false).makeRef())),
-                    JsNameRef(internalName)
+                    JsNameRef(name, JsNameRef("\$crossModule\$", makeInternalModuleName().makeRef())), JsNameRef(internalName)
                 ).makeStmt()
             }
         }
@@ -123,6 +122,40 @@ class Merger(
                     error("Clashing definitions with tag '$it'")
                 }
             }
+        }
+    }
+
+    private fun makeInternalModuleName() = JsName("_", false)
+
+    private fun makeExporterName() = JsName("\$jsExportAll\$", false)
+
+    private fun declareAndCallJsExporter(): List<JsStatement> {
+        val exportBody = JsBlock(fragments.flatMap { it.exports.statements })
+        if (exportBody.isEmpty) {
+            return emptyList()
+        }
+
+        val internalModuleName = makeInternalModuleName()
+        val exporterName = makeExporterName()
+        val jsExporterFunction = JsFunction(emptyScope, "js exporter function").apply {
+            body = exportBody
+            name = exporterName
+            parameters.add(JsParameter(internalModuleName))
+        }
+        val jsExporterCall = JsInvocation(exporterName.makeRef(), internalModuleName.makeRef())
+        val result = mutableListOf(jsExporterFunction.makeStmt(), jsExporterCall.makeStmt())
+        if (!generateCallToMain) {
+            val exportExporter = jsAssignment(JsNameRef(exporterName, internalModuleName.makeRef()), exporterName.makeRef())
+            result += exportExporter.makeStmt()
+        }
+        return result
+    }
+
+    private fun transitiveJsExport(): List<JsStatement> {
+        val internalModuleName = makeInternalModuleName()
+        val exporterName = makeExporterName()
+        return crossModuleReferences.transitiveJsExportFrom.map {
+            JsInvocation(JsNameRef(exporterName, it.makeRef()), internalModuleName.makeRef()).makeStmt()
         }
     }
 
@@ -176,12 +209,10 @@ class Merger(
 
         val callToMain = fragments.sortedBy { it.packageFqn }.firstNotNullOfOrNull { it.mainFunction }
 
-        val exportStatements = fragments.flatMap { it.exports.statements } + additionalExports
+        val exportStatements = declareAndCallJsExporter() + additionalExports + transitiveJsExport()
 
         val importedJsModules = this.importedModulesMap.values.toList() + this.crossModuleReferences.importedModules
         val importStatements = this.importStatements.values.toList()
-
-        val internalModuleName = JsName("_", false)
 
         val program = JsProgram()
 
@@ -192,6 +223,7 @@ class Merger(
                 this.statements.addWithComment("block: exports", exportStatements)
             }
         } else {
+            val internalModuleName = makeInternalModuleName()
             val rootFunction = JsFunction(program.rootScope, JsBlock(), "root function").apply {
                 parameters += JsParameter(internalModuleName)
                 parameters += (importedJsModules).map { JsParameter(it.internalName) }

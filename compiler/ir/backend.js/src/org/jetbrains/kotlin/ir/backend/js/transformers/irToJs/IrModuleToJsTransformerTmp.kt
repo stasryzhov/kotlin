@@ -316,8 +316,8 @@ fun generateWrappedModuleBody(
 
         val moduleToRef = program.crossModuleDependencies(relativeRequirePath)
 
-        val main = program.modules.last()
-        val others = program.modules.dropLast(1)
+        val main = program.mainModule
+        val others = program.otherModules
 
         val mainModule = generateSingleWrappedModuleBody(
             mainModuleName,
