@@ -29,21 +29,21 @@ internal class JsUsefulDeclarationProcessor(
     removeUnusedAssociatedObjects: Boolean
 ) : UsefulDeclarationProcessor(printReachabilityInfo, removeUnusedAssociatedObjects) {
 
-    private val equalsMethod get() = getDeclarationByName("equals")
-    private val hashCodeMethod get() = getDeclarationByName("hashCode")
+    private val equalsMethod get() = getMethodOfAny("equals")
+    private val hashCodeMethod get() = getMethodOfAny("hashCode")
 
     override val bodyVisitor: BodyVisitorBase = object : BodyVisitorBase() {
-        override fun visitCall(expression: IrCall, data: IrDeclaration) {
-            super.visitCall(expression, data)
+        override fun visitCall(expression: IrCall) {
+            super.visitCall(expression)
             when (expression.symbol) {
                 context.intrinsics.jsBoxIntrinsic -> {
                     val inlineClass = context.inlineClassesUtils.getInlinedClass(expression.getTypeArgument(0)!!)!!
                     val constructor = inlineClass.declarations.filterIsInstance<IrConstructor>().single { it.isPrimary }
-                    constructor.enqueue(data, "intrinsic: jsBoxIntrinsic")
+                    constructor.enqueue("intrinsic: jsBoxIntrinsic")
                 }
                 context.intrinsics.jsClass -> {
                     val ref = expression.getTypeArgument(0)!!.classifierOrFail.owner as IrDeclaration
-                    ref.enqueue(data, "intrinsic: jsClass")
+                    ref.enqueue("intrinsic: jsClass")
                     referencedJsClasses += ref
                     // When class reference provided as parameter to external function
                     // It can be instantiated by external JS script
@@ -57,7 +57,7 @@ internal class JsUsefulDeclarationProcessor(
                         (ref as IrClass)
                             .constructors
                             .forEach {
-                                it.enqueue(data, "intrinsic: jsClass (constructor)")
+                                it.enqueue("intrinsic: jsClass (constructor)")
                             }
                     }
                 }
@@ -67,32 +67,32 @@ internal class JsUsefulDeclarationProcessor(
                 }
                 context.intrinsics.jsObjectCreate -> {
                     val classToCreate = expression.getTypeArgument(0)!!.classifierOrFail.owner as IrClass
-                    classToCreate.enqueue(data, "intrinsic: jsObjectCreate")
+                    classToCreate.enqueue("intrinsic: jsObjectCreate")
                     constructedClasses += classToCreate
                 }
                 context.intrinsics.jsEquals -> {
-                    equalsMethod.enqueue(data, "intrinsic: jsEquals")
+                    equalsMethod.enqueue("intrinsic: jsEquals")
                 }
                 context.intrinsics.jsToString -> {
-                    toStringMethod.enqueue(data, "intrinsic: jsToString")
+                    toStringMethod.enqueue("intrinsic: jsToString")
                 }
                 context.intrinsics.jsHashCode -> {
-                    hashCodeMethod.enqueue(data, "intrinsic: jsHashCode")
+                    hashCodeMethod.enqueue("intrinsic: jsHashCode")
                 }
                 context.intrinsics.jsPlus -> {
                     if (expression.getValueArgument(0)?.type?.classOrNull == context.irBuiltIns.stringClass) {
-                        toStringMethod.enqueue(data, "intrinsic: jsPlus")
+                        toStringMethod.enqueue("intrinsic: jsPlus")
                     }
                 }
                 context.intrinsics.jsConstruct -> {
                     val callType = expression.getTypeArgument(0)!!
                     val constructor = callType.getClass()!!.primaryConstructor
-                    constructor!!.enqueue(data, "ctor call from jsConstruct-intrinsic")
+                    constructor!!.enqueue("ctor call from jsConstruct-intrinsic")
                 }
                 context.intrinsics.es6DefaultType -> {
                     //same as jsClass
                     val ref = expression.getTypeArgument(0)!!.classifierOrFail.owner as IrDeclaration
-                    ref.enqueue(data, "intrinsic: jsClass")
+                    ref.enqueue("intrinsic: jsClass")
                     referencedJsClasses += ref
 
                     //Generate klass in `val currResultType = resultType || klass`
@@ -106,7 +106,7 @@ internal class JsUsefulDeclarationProcessor(
                 context.intrinsics.jsInvokeSuspendSuperTypeWithReceiver,
                 context.intrinsics.jsInvokeSuspendSuperTypeWithReceiverAndParam -> {
                     invokeFunForLambda(expression)
-                        .enqueue(data, "intrinsic: suspendSuperType")
+                        .enqueue("intrinsic: suspendSuperType")
                 }
             }
         }
@@ -117,16 +117,18 @@ internal class JsUsefulDeclarationProcessor(
 
         super.processConstructedClassDeclaration(declaration)
 
-        if (declaration is IrSimpleFunction && declaration.getJsNameOrKotlinName().asString() == "valueOf") {
-            declaration.enqueue(declaration, "valueOf")
-        }
+        declaration.inEnclosingDeclaration {
+            if (declaration is IrSimpleFunction && declaration.getJsNameOrKotlinName().asString() == "valueOf") {
+                declaration.enqueue("valueOf")
+            }
 
-        // A hack to support `toJson` and other js-specific members
-        if (declaration.getJsName() != null ||
-            declaration is IrField && declaration.correspondingPropertySymbol?.owner?.getJsName() != null ||
-            declaration is IrSimpleFunction && declaration.correspondingPropertySymbol?.owner?.getJsName() != null
-        ) {
-            declaration.enqueue(declaration, "annotated by @JsName")
+            // A hack to support `toJson` and other js-specific members
+            if (declaration.getJsName() != null ||
+                declaration is IrField && declaration.correspondingPropertySymbol?.owner?.getJsName() != null ||
+                declaration is IrSimpleFunction && declaration.correspondingPropertySymbol?.owner?.getJsName() != null
+            ) {
+                declaration.enqueue("annotated by @JsName")
+            }
         }
     }
 
@@ -144,7 +146,9 @@ internal class JsUsefulDeclarationProcessor(
                 if (removeUnusedAssociatedObjects && annotationClass !in referencedJsClasses) continue
 
                 annotation.associatedObject()?.let { obj ->
-                    context.mapping.objectToGetInstanceFunction[obj]?.enqueue(klass, "associated object factory")
+                    klass.inEnclosingDeclaration {
+                        context.mapping.objectToGetInstanceFunction[obj]?.enqueue("associated object factory")
+                    }
                 }
             }
         }

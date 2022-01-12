@@ -32,7 +32,7 @@ fun compileWasm(
     exportedDeclarations: Set<FqName> = emptySet(),
     propertyLazyInitialization: Boolean,
     emitNameSection: Boolean = false,
-    dceWasm: Boolean = false,
+    dceEnabled: Boolean = false,
 ): WasmCompilerResult {
     val mainModule = depsDescriptors.mainModule
     val configuration = depsDescriptors.compilerConfiguration
@@ -71,12 +71,12 @@ fun compileWasm(
 
     wasmPhases.invokeToplevel(phaseConfig, context, moduleFragment)
 
-    if (dceWasm) {
+    if (dceEnabled) {
         eliminateDeadDeclarations(listOf(moduleFragment), context)
     }
 
     val compiledWasmModule = WasmCompiledModuleFragment(context.irBuiltIns)
-    val codeGenerator = WasmModuleFragmentGenerator(context, compiledWasmModule, allowIncompleteImplementations = dceWasm)
+    val codeGenerator = WasmModuleFragmentGenerator(context, compiledWasmModule, allowIncompleteImplementations = dceEnabled)
     codeGenerator.generateModule(moduleFragment)
 
     val linkedModule = compiledWasmModule.linkWasmCompiledFragments()

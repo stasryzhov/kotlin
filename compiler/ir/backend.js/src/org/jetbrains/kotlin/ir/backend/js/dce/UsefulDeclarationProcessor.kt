@@ -14,7 +14,6 @@ import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.types.classifierOrNull
 import org.jetbrains.kotlin.ir.util.*
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import java.util.*
@@ -25,66 +24,70 @@ abstract class UsefulDeclarationProcessor(
 ) {
     abstract val context: JsCommonBackendContext
 
-    protected fun getDeclarationByName(name: String): IrDeclaration =
+    protected fun getMethodOfAny(name: String): IrDeclaration =
         context.irBuiltIns.anyClass.owner.declarations.filterIsInstance<IrFunction>().single { it.name.asString() == name }
 
-    protected val toStringMethod get() = getDeclarationByName("toString")
+    protected val toStringMethod: IrDeclaration by lazy { getMethodOfAny("toString") }
     protected abstract fun isExported(declaration: IrDeclaration): Boolean
     protected abstract val bodyVisitor: BodyVisitorBase
 
-    protected open inner class BodyVisitorBase : IrElementVisitor<Unit, IrDeclaration> {
-        override fun visitElement(element: IrElement, data: IrDeclaration) {
-            element.acceptChildren(this, data)
+    protected abstract inner class BodyVisitorBase : IrElementVisitorVoid {
+        override fun visitElement(element: IrElement) {
+            element.acceptChildren(this, null)
         }
 
-        override fun visitFunctionAccess(expression: IrFunctionAccessExpression, data: IrDeclaration) {
-            super.visitFunctionAccess(expression, data)
-            expression.symbol.owner.enqueue(data, "function access")
+        override fun visitFunctionAccess(expression: IrFunctionAccessExpression) {
+            super.visitFunctionAccess(expression)
+            expression.symbol.owner.enqueue("function access")
         }
 
-        override fun visitRawFunctionReference(expression: IrRawFunctionReference, data: IrDeclaration) {
-            super.visitRawFunctionReference(expression, data)
-            expression.symbol.owner.enqueue(data, "raw function access")
+        override fun visitRawFunctionReference(expression: IrRawFunctionReference) {
+            super.visitRawFunctionReference(expression)
+            expression.symbol.owner.enqueue("raw function access")
         }
 
-
-        override fun visitValueAccess(expression: IrValueAccessExpression, data: IrDeclaration) = visitVariableAccess(expression, data)
-        override fun visitGetValue(expression: IrGetValue, data: IrDeclaration) = visitVariableAccess(expression, data)
-        override fun visitSetValue(expression: IrSetValue, data: IrDeclaration) = visitVariableAccess(expression, data)
-
-        private fun visitVariableAccess(expression: IrValueAccessExpression, data: IrDeclaration) {
-            visitDeclarationReference(expression, data)
-            expression.symbol.owner.enqueue(data, "variable access")
+        override fun visitVariableAccess(expression: IrValueAccessExpression) {
+            visitDeclarationReference(expression)
+            expression.symbol.owner.enqueue("variable access")
         }
 
-        override fun visitFieldAccess(expression: IrFieldAccessExpression, data: IrDeclaration) {
-            super.visitFieldAccess(expression, data)
-            expression.symbol.owner.enqueue(data, "field access")
+        override fun visitFieldAccess(expression: IrFieldAccessExpression) {
+            super.visitFieldAccess(expression)
+            expression.symbol.owner.enqueue("field access")
         }
 
-        override fun visitStringConcatenation(expression: IrStringConcatenation, data: IrDeclaration) {
-            super.visitStringConcatenation(expression, data)
-            toStringMethod.enqueue(data, "string concatenation")
+        override fun visitStringConcatenation(expression: IrStringConcatenation) {
+            super.visitStringConcatenation(expression)
+            toStringMethod.enqueue("string concatenation")
         }
     }
 
     private fun addReachabilityInfoIfNeeded(
-        from: IrDeclaration?,
         to: IrDeclaration,
         description: String?,
         isContagiousOverridableDeclaration: Boolean,
         altFromFqn: String?
     ) {
         if (!printReachabilityInfo) return
-        val fromFqn = (from as? IrDeclarationWithName)?.fqNameWhenAvailable?.asString() ?: altFromFqn ?: "<unknown>"
+        val fromFqn = (enclosingDeclaration as? IrDeclarationWithName)?.fqNameWhenAvailable?.asString() ?: altFromFqn ?: "<unknown>"
         val toFqn = (to as? IrDeclarationWithName)?.fqNameWhenAvailable?.asString() ?: "<unknown>"
         val comment = (description ?: "") + (if (isContagiousOverridableDeclaration) "[CONTAGIOUS!]" else "")
         val info = "\"$fromFqn\" -> \"$toFqn\"" + (if (comment.isBlank()) "" else " // $comment")
         reachabilityInfo.add(info)
     }
 
+    protected var enclosingDeclaration: IrDeclaration? = null
+    protected inline fun IrDeclaration?.inEnclosingDeclaration(body: () -> Unit) {
+        val oldInDeclaration = enclosingDeclaration
+        try {
+            enclosingDeclaration = this
+            body()
+        } finally {
+            enclosingDeclaration = oldInDeclaration
+        }
+    }
+
     protected fun IrDeclaration.enqueue(
-        from: IrDeclaration?,
         description: String?,
         isContagious: Boolean = true,
         altFromFqn: String? = null
@@ -96,7 +99,7 @@ abstract class UsefulDeclarationProcessor(
         // it requires fixing how functions with default arguments is handled
         val isContagiousOverridableDeclaration = isContagious && this is IrOverridableDeclaration<*> && this.isMemberOfOpenClass
 
-        addReachabilityInfoIfNeeded(from, this, description, isContagiousOverridableDeclaration, altFromFqn)
+        addReachabilityInfoIfNeeded(this, description, isContagiousOverridableDeclaration, altFromFqn)
 
         if (isContagiousOverridableDeclaration) {
             contagiousReachableDeclarations.add(this as IrOverridableDeclaration<*>)
@@ -105,19 +108,6 @@ abstract class UsefulDeclarationProcessor(
         if (this !in result) {
             result.add(this)
             queue.addLast(this)
-        }
-    }
-
-    private val nestedDeclarationVisitor = object : IrElementVisitorVoid {
-        override fun visitElement(element: IrElement) {
-            element.acceptChildrenVoid(this)
-        }
-
-        override fun visitBody(body: IrBody) = Unit // Skip
-
-        override fun visitDeclaration(declaration: IrDeclarationBase) {
-            declaration.enqueue(declaration.parentClassOrNull, "roots' nested declaration")
-            super.visitDeclaration(declaration)
         }
     }
 
@@ -138,34 +128,42 @@ abstract class UsefulDeclarationProcessor(
     protected open fun processField(irField: IrField): Unit = Unit
 
     protected open fun processClass(irClass: IrClass) {
-        irClass.superTypes.forEach {
-            (it.classifierOrNull as? IrClassSymbol)?.owner?.enqueue(irClass, "superTypes")
-        }
+        irClass.inEnclosingDeclaration {
+            irClass.superTypes.forEach {
+                (it.classifierOrNull as? IrClassSymbol)?.owner?.enqueue( "superTypes")
+            }
 
-        if (irClass.isObject && isExported(irClass)) {
-            context.mapping.objectToGetInstanceFunction[irClass]
-                ?.enqueue(irClass, "Exported object getInstance function")
-        }
+            if (irClass.isObject && isExported(irClass)) {
+                irClass.inEnclosingDeclaration {
+                    context.mapping.objectToGetInstanceFunction[irClass]
+                        ?.enqueue("Exported object getInstance function")
+                }
+            }
 
-        irClass.annotations.forEach {
-            val annotationClass = it.symbol.owner.constructedClass
-            if (annotationClass.isAssociatedObjectAnnotatedAnnotation) {
-                classesWithObjectAssociations += irClass
-                annotationClass.enqueue(irClass, "@AssociatedObject annotated annotation class")
+            irClass.annotations.forEach {
+                val annotationClass = it.symbol.owner.constructedClass
+                if (annotationClass.isAssociatedObjectAnnotatedAnnotation) {
+                    classesWithObjectAssociations += irClass
+                    annotationClass.enqueue("@AssociatedObject annotated annotation class")
+                }
             }
         }
     }
 
     protected open fun processSimpleFunction(irFunction: IrSimpleFunction) {
         if (irFunction.isFakeOverride) {
-            irFunction.resolveFakeOverride()?.enqueue(irFunction, "real overridden fun", isContagious = false)
+            irFunction.inEnclosingDeclaration {
+                irFunction.resolveFakeOverride()?.enqueue("real overridden fun", isContagious = false)
+            }
         }
     }
 
     protected open fun processConstructor(irConstructor: IrConstructor) {
         // Collect instantiated classes.
         irConstructor.constructedClass.let {
-            it.enqueue(irConstructor, "constructed class")
+            irConstructor.inEnclosingDeclaration {
+                it.enqueue("constructed class")
+            }
             constructedClasses += it
         }
     }
@@ -188,7 +186,9 @@ abstract class UsefulDeclarationProcessor(
 
         if (declaration is IrOverridableDeclaration<*>) {
             declaration.findOverriddenContagiousDeclaration()?.let {
-                declaration.enqueue(it, "overrides useful declaration")
+                it.inEnclosingDeclaration {
+                    declaration.enqueue("overrides useful declaration")
+                }
             }
         }
 
@@ -196,33 +196,25 @@ abstract class UsefulDeclarationProcessor(
         // Until a getter is accessed it doesn't get moved to the declaration list.
         if (declaration is IrProperty) {
             declaration.getter?.run {
-                findOverriddenContagiousDeclaration()?.let { enqueue(it, "(getter) overrides useful declaration") }
+                inEnclosingDeclaration {
+                    findOverriddenContagiousDeclaration()?.let { enqueue("(getter) overrides useful declaration") }
+                }
             }
             declaration.setter?.run {
-                findOverriddenContagiousDeclaration()?.let { enqueue(it, "(setter) overrides useful declaration") }
+                inEnclosingDeclaration {
+                    findOverriddenContagiousDeclaration()?.let { enqueue("(setter) overrides useful declaration") }
+                }
             }
         }
     }
 
     protected open fun handleAssociatedObjects(): Unit = Unit
 
-    fun collectDeclarations(
-        rootDeclarations: List<IrDeclaration>,
-        additionalDeclarations: Iterable<IrDeclaration>,
-    ): Set<IrDeclaration> {
+    fun collectDeclarations(rootDeclarations: Iterable<IrDeclaration>): Set<IrDeclaration> {
 
-        // use withInitialIr to avoid ConcurrentModificationException in dce-driven lowering when adding roots' nested declarations (members)
         // Add roots
         rootDeclarations.forEach {
-            it.enqueue(null, null, altFromFqn = "<ROOT>")
-        }
-        // Add roots' nested declarations
-        rootDeclarations.forEach { rootDeclaration ->
-            rootDeclaration.acceptChildren(nestedDeclarationVisitor, null)
-        }
-
-        additionalDeclarations.forEach {
-            it.enqueue(null, "additional declaration", altFromFqn = "<ROOT>")
+            it.enqueue(null, altFromFqn = "<ROOT>")
         }
 
         while (queue.isNotEmpty()) {
@@ -243,7 +235,9 @@ abstract class UsefulDeclarationProcessor(
                     else -> null
                 }
 
-                body?.accept(bodyVisitor, declaration)
+                declaration.inEnclosingDeclaration {
+                    body?.accept(bodyVisitor, null)
+                }
             }
 
             handleAssociatedObjects()

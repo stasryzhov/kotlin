@@ -6,41 +6,31 @@
 package org.jetbrains.kotlin.backend.wasm.dce
 
 import org.jetbrains.kotlin.backend.wasm.WasmBackendContext
-import org.jetbrains.kotlin.builtins.StandardNames.BUILT_INS_PACKAGE_FQ_NAME
+import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.backend.js.dce.UselessDeclarationsRemover
 import org.jetbrains.kotlin.ir.backend.js.utils.*
 import org.jetbrains.kotlin.ir.declarations.*
-import org.jetbrains.kotlin.ir.expressions.IrBlockBody
-import org.jetbrains.kotlin.ir.expressions.IrConst
-import org.jetbrains.kotlin.ir.expressions.IrSetField
+import org.jetbrains.kotlin.ir.expressions.IrBody
 import org.jetbrains.kotlin.ir.util.*
+import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
 import org.jetbrains.kotlin.js.config.JSConfigurationKeys
-import org.jetbrains.kotlin.name.isSubpackageOf
-
-private val WasmBackendContext.initializersList
-    get() = (fieldInitFunction.body as IrBlockBody).statements
 
 internal fun eliminateDeadDeclarations(modules: List<IrModuleFragment>, context: WasmBackendContext) {
     val printReachabilityInfo =
         context.configuration.getBoolean(JSConfigurationKeys.PRINT_REACHABILITY_INFO) ||
                 java.lang.Boolean.getBoolean("kotlin.wasm.dce.print.reachability.info")
 
-    val fieldsToInitializers = context.initializersList.associate { (it as IrSetField).symbol.owner to it }
-
     val usefulDeclarations = WasmUsefulDeclarationProcessor(
         context = context,
-        fieldsInitializers = fieldsToInitializers,
         printReachabilityInfo = printReachabilityInfo
-    ).collectDeclarations(
-        rootDeclarations = buildRoots(modules),
-        additionalDeclarations = buildAdditionalDeclarations(context, fieldsToInitializers)
-    )
+    ).collectDeclarations(rootDeclarations = buildRoots(modules, context))
 
     removeUnusedDeclarations(
         context = context,
         modules = modules,
-        usefulDeclarations = usefulDeclarations + context.fieldInitFunction
+        usefulDeclarations = usefulDeclarations
     )
 }
 
@@ -49,10 +39,6 @@ private fun removeUnusedDeclarations(
     modules: List<IrModuleFragment>,
     usefulDeclarations: Set<IrDeclaration>
 ) {
-    context.initializersList.removeIf {
-        (it as IrSetField).symbol.owner !in usefulDeclarations
-    }
-
     val remover = UselessDeclarationsRemover(
         removeUnusedAssociatedObjects = false,
         usefulDeclarations = usefulDeclarations,
@@ -65,30 +51,28 @@ private fun removeUnusedDeclarations(
     }
 }
 
-private fun buildAdditionalDeclarations(context: WasmBackendContext, fieldsToInitializers: Map<IrField, IrSetField>): List<IrDeclaration> {
-    fun Map.Entry<IrField, IrSetField>.initializerMustBeIncluded(): Boolean =
-        (value.value !is IrConst<*> && !key.kotlinFqName.isSubpackageOf(BUILT_INS_PACKAGE_FQ_NAME)) ||
-                key.correspondingPropertySymbol?.owner?.hasAnnotation(context.wasmSymbols.eagerInitialization) == true
+private fun buildRoots(modules: List<IrModuleFragment>, context: WasmBackendContext): List<IrDeclaration> = buildList {
+    val nestedDeclarationsVisitor = object : IrElementVisitorVoid {
+        override fun visitElement(element: IrElement): Unit = element.acceptChildrenVoid(this)
+        override fun visitBody(body: IrBody): Unit = Unit // Skip
 
-    return buildList {
-        add(context.irBuiltIns.throwableClass.owner)
-        add(context.mainCallsWrapperFunction)
-        for (initializedField in fieldsToInitializers) {
-            if (initializedField.initializerMustBeIncluded()) {
-                add(initializedField.key)
-            }
+        override fun visitDeclaration(declaration: IrDeclarationBase) {
+            super.visitDeclaration(declaration)
+            add(declaration)
         }
     }
-}
 
-private fun buildRoots(modules: List<IrModuleFragment>): List<IrDeclaration> = buildList {
     modules.onAllFiles {
         declarations.forEach { declaration ->
-            if (declaration.isJsExport() || declaration.isEffectivelyExternal()) {
-                add(declaration)
+            if (declaration.isJsExport()) {
+                declaration.acceptVoid(nestedDeclarationsVisitor)
             }
         }
     }
+
+    add(context.irBuiltIns.throwableClass.owner)
+    add(context.mainCallsWrapperFunction)
+    add(context.fieldInitFunction)
 }
 
 private inline fun List<IrModuleFragment>.onAllFiles(body: IrFile.() -> Unit) {

@@ -20,21 +20,20 @@ import org.jetbrains.kotlin.wasm.ir.*
 
 internal class WasmUsefulDeclarationProcessor(
     override val context: WasmBackendContext,
-    private val fieldsInitializers: Map<IrField, IrSetField>,
     printReachabilityInfo: Boolean
 ) : UsefulDeclarationProcessor(printReachabilityInfo, removeUnusedAssociatedObjects = false) {
 
     private val unitGetInstance: IrSimpleFunction = context.findUnitGetInstanceFunction()
 
     override val bodyVisitor: BodyVisitorBase = object : BodyVisitorBase() {
-        override fun <T> visitConst(expression: IrConst<T>, data: IrDeclaration) = when (expression.kind) {
-            is IrConstKind.Null -> expression.type.enqueueType(data, "expression type")
+        override fun <T> visitConst(expression: IrConst<T>) = when (expression.kind) {
+            is IrConstKind.Null -> expression.type.enqueueType("expression type")
             is IrConstKind.String -> context.wasmSymbols.stringGetLiteral.owner
-                .enqueue(data, "String literal intrinsic getter stringGetLiteral")
+                .enqueue("String literal intrinsic getter stringGetLiteral")
             else -> Unit
         }
 
-        private fun tryToProcessIntrinsicCall(call: IrCall, from: IrDeclaration): Boolean = when (call.symbol) {
+        private fun tryToProcessIntrinsicCall(call: IrCall): Boolean = when (call.symbol) {
             context.wasmSymbols.unboxIntrinsic -> {
                 val fromType = call.getTypeArgument(0)
                 if (fromType != null && !fromType.isNothing() && !fromType.isNullableNothing()) {
@@ -42,8 +41,8 @@ internal class WasmUsefulDeclarationProcessor(
                         ?.let { context.inlineClassesUtils.getInlinedClass(it) }
                         ?.let { getInlineClassBackingField(it) }
                     if (backingField != null) {
-                        backingField.parentAsClass.enqueue(from, "type for unboxIntrinsic")
-                        backingField.enqueue(from, "backing inline class field for unboxIntrinsic")
+                        backingField.parentAsClass.enqueue("type for unboxIntrinsic")
+                        backingField.enqueue("backing inline class field for unboxIntrinsic")
                     }
                 }
                 true
@@ -51,13 +50,13 @@ internal class WasmUsefulDeclarationProcessor(
             context.wasmSymbols.wasmClassId,
             context.wasmSymbols.wasmInterfaceId,
             context.wasmSymbols.wasmRefCast -> {
-                call.getTypeArgument(0)?.getClass()?.symbol?.owner?.enqueue(from, "generic intrinsic ${call.symbol.owner.name}")
+                call.getTypeArgument(0)?.getClass()?.symbol?.owner?.enqueue("generic intrinsic ${call.symbol.owner.name}")
                 true
             }
             else -> false
         }
 
-        private fun tryToProcessWasmOpIntrinsicCall(call: IrCall, function: IrFunction, from: IrDeclaration): Boolean {
+        private fun tryToProcessWasmOpIntrinsicCall(call: IrCall, function: IrFunction): Boolean {
             if (function.hasWasmNoOpCastAnnotation()) {
                 return true
             }
@@ -68,12 +67,12 @@ internal class WasmUsefulDeclarationProcessor(
                 when (op.immediates.size) {
                     0 -> {
                         if (op == WasmOp.REF_TEST) {
-                            call.getTypeArgument(0)?.getRuntimeClass?.enqueue(from, "REF_TEST")
+                            call.getTypeArgument(0)?.getRuntimeClass?.enqueue("REF_TEST")
                         }
                     }
                     1 -> {
                         if (op.immediates.firstOrNull() == WasmImmediateKind.STRUCT_TYPE_IDX) {
-                            function.dispatchReceiverParameter?.type?.classOrNull?.owner?.enqueue(from, "STRUCT_TYPE_IDX")
+                            function.dispatchReceiverParameter?.type?.classOrNull?.owner?.enqueue("STRUCT_TYPE_IDX")
                         }
                     }
                 }
@@ -82,101 +81,108 @@ internal class WasmUsefulDeclarationProcessor(
             return false
         }
 
-        override fun visitCall(expression: IrCall, data: IrDeclaration) {
-            super.visitCall(expression, data)
+        override fun visitCall(expression: IrCall) {
+            super.visitCall(expression)
 
             if (expression.symbol == context.wasmSymbols.boxIntrinsic) {
-                expression.getTypeArgument(0)?.getRuntimeClass?.enqueue(data, "boxIntrinsic")
+                expression.getTypeArgument(0)?.getRuntimeClass?.enqueue("boxIntrinsic")
                 return
             }
 
             if (expression.symbol == unitGetInstance.symbol) {
-                unitGetInstance.enqueue(data, "unitGetInstance")
+                unitGetInstance.enqueue("unitGetInstance")
                 return
             }
 
             val function: IrFunction = expression.symbol.owner.realOverrideTarget
             if (function.returnType == context.irBuiltIns.unitType) {
-                unitGetInstance.enqueue(data, "unitGetInstance")
-                return
+                unitGetInstance.enqueue("unitGetInstance")
             }
 
-            if (tryToProcessIntrinsicCall(expression, from = data)) return
-            if (tryToProcessWasmOpIntrinsicCall(expression, function, from = data)) return
+            if (tryToProcessIntrinsicCall(expression)) return
+            if (tryToProcessWasmOpIntrinsicCall(expression, function)) return
 
             val isSuperCall = expression.superQualifierSymbol != null
             if (function is IrSimpleFunction && function.isOverridable && !isSuperCall) {
                 val klass = function.parentAsClass
                 if (!klass.isInterface) {
-                    context.wasmSymbols.getVirtualMethodId.owner.enqueue(data, "getVirtualMethodId")
-                    function.symbol.owner.enqueue(data, "referenceFunctionType")
+                    context.wasmSymbols.getVirtualMethodId.owner.enqueue("getVirtualMethodId")
+                    function.symbol.owner.enqueue("referenceFunctionType")
                 } else {
-                    klass.symbol.owner.enqueue(data, "referenceInterfaceId")
-                    context.wasmSymbols.getInterfaceImplId.owner.enqueue(data, "getInterfaceImplId")
-                    function.symbol.owner.enqueue(data, "referenceInterfaceTable and referenceFunctionType")
+                    klass.symbol.owner.enqueue("referenceInterfaceId")
+                    context.wasmSymbols.getInterfaceImplId.owner.enqueue("getInterfaceImplId")
+                    function.symbol.owner.enqueue("referenceInterfaceTable and referenceFunctionType")
                 }
             }
         }
     }
 
-    private fun IrType.needToEnqueueType(): Boolean = when (this) {
-        context.builtIns.booleanType,
-        context.builtIns.byteType,
-        context.builtIns.shortType,
-        context.builtIns.charType,
-        context.builtIns.booleanType,
-        context.builtIns.byteType,
-        context.builtIns.shortType,
-        context.builtIns.intType,
-        context.builtIns.charType,
-        context.builtIns.longType,
-        context.builtIns.floatType,
-        context.builtIns.doubleType,
-        context.builtIns.nothingType,
-        context.wasmSymbols.voidType -> false
-        else -> this.erasedUpperBound?.isExternal != true &&
-                context.inlineClassesUtils.getInlinedClass(this) == null &&
-                !isBuiltInWasmRefType(this)
-    }
-
-    private fun IrType.enqueueRuntimeClassOrAny(from: IrDeclaration, info: String): Unit =
-        (this.getRuntimeClass ?: context.wasmSymbols.any.owner).enqueue(from, info, isContagious = false)
-
-    private fun IrType.enqueueType(from: IrDeclaration, info: String) {
-        if (needToEnqueueType()) {
-            enqueueRuntimeClassOrAny(from, info)
+    private fun IrType.getInlinedValueTypeIfAny(): IrType? = when (this) {
+        context.irBuiltIns.booleanType,
+        context.irBuiltIns.byteType,
+        context.irBuiltIns.shortType,
+        context.irBuiltIns.charType,
+        context.irBuiltIns.booleanType,
+        context.irBuiltIns.byteType,
+        context.irBuiltIns.shortType,
+        context.irBuiltIns.intType,
+        context.irBuiltIns.charType,
+        context.irBuiltIns.longType,
+        context.irBuiltIns.floatType,
+        context.irBuiltIns.doubleType,
+        context.irBuiltIns.nothingType,
+        context.wasmSymbols.voidType -> null
+        else -> when {
+            isBuiltInWasmRefType(this) -> null
+            erasedUpperBound?.isExternal == true -> null
+            else -> when (val ic = context.inlineClassesUtils.getInlinedClass(this)) {
+                null -> this
+                else -> context.inlineClassesUtils.getInlineClassUnderlyingType(ic).getInlinedValueTypeIfAny()
+            }
         }
     }
 
-    private fun IrDeclaration.enqueueParentClass() =
-        parentClassOrNull?.enqueue(this, "parent class", isContagious = false)
+    private fun IrType.enqueueRuntimeClassOrAny(info: String): Unit =
+        (this.getRuntimeClass ?: context.wasmSymbols.any.owner).enqueue(info, isContagious = false)
+
+    private fun IrType.enqueueType(info: String) {
+        getInlinedValueTypeIfAny()
+            ?.enqueueRuntimeClassOrAny(info)
+    }
+
+    private fun IrDeclaration.enqueueParentClass(): Unit = inEnclosingDeclaration {
+        parentClassOrNull?.enqueue("parent class", isContagious = false)
+    }
 
     override fun processField(irField: IrField) {
         super.processField(irField)
         irField.enqueueParentClass()
-        irField.type.enqueueType(irField, "field types")
-        fieldsInitializers[irField]?.value?.accept(bodyVisitor, irField)
+        irField.inEnclosingDeclaration {
+            irField.type.enqueueType("field types")
+        }
     }
 
     override fun processClass(irClass: IrClass) {
         super.processClass(irClass)
 
-        irClass.getWasmArrayAnnotation()?.type
-            ?.enqueueType(irClass, "array type for wasm array annotated")
+        irClass.inEnclosingDeclaration {
+            irClass.getWasmArrayAnnotation()?.type
+                ?.enqueueType("array type for wasm array annotated")
 
-        if (context.inlineClassesUtils.isClassInlineLike(irClass)) {
-            irClass.declarations
-                .firstIsInstanceOrNull<IrConstructor>()
-                ?.takeIf { it.isPrimary }
-                ?.enqueue(irClass, "inline class primary ctor")
+            if (context.inlineClassesUtils.isClassInlineLike(irClass)) {
+                irClass.declarations
+                    .firstIsInstanceOrNull<IrConstructor>()
+                    ?.takeIf { it.isPrimary }
+                    ?.enqueue("inline class primary ctor")
+            }
         }
     }
 
-    private fun IrValueParameter.enqueueValueParameterType(from: IrDeclaration) {
+    private fun IrValueParameter.enqueueValueParameterType() {
         if (context.inlineClassesUtils.shouldValueParameterBeBoxed(this)) {
-            type.enqueueRuntimeClassOrAny(from, "function ValueParameterType")
+            type.enqueueRuntimeClassOrAny("function ValueParameterType")
         } else {
-            type.enqueueType(from, "function ValueParameterType")
+            type.enqueueType("function ValueParameterType")
         }
     }
 
@@ -186,16 +192,20 @@ internal class WasmUsefulDeclarationProcessor(
         val isIntrinsic = irFunction.hasWasmNoOpCastAnnotation() || irFunction.getWasmOpAnnotation() != null
         if (isIntrinsic) return
 
-        irFunction.getEffectiveValueParameters().forEach { it.enqueueValueParameterType(irFunction) }
-        irFunction.returnType.enqueueType(irFunction, "function return type")
+        irFunction.inEnclosingDeclaration {
+            irFunction.getEffectiveValueParameters().forEach { it.enqueueValueParameterType() }
+            irFunction.returnType.enqueueType("function return type")
+        }
     }
 
     override fun processSimpleFunction(irFunction: IrSimpleFunction) {
         super.processSimpleFunction(irFunction)
         irFunction.enqueueParentClass()
         if (irFunction.isFakeOverride) {
-            irFunction.overriddenSymbols.forEach { overridden ->
-                overridden.owner.enqueue(irFunction, "original for fake-override")
+            irFunction.inEnclosingDeclaration {
+                irFunction.overriddenSymbols.forEach { overridden ->
+                    overridden.owner.enqueue("original for fake-override")
+                }
             }
         }
         processIrFunction(irFunction)
@@ -207,6 +217,5 @@ internal class WasmUsefulDeclarationProcessor(
         processIrFunction(irConstructor)
     }
 
-    override fun isExported(declaration: IrDeclaration): Boolean =
-        declaration.isJsExport() || declaration.isEffectivelyExternal()
+    override fun isExported(declaration: IrDeclaration): Boolean = declaration.isJsExport()
 }
