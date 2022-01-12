@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 // FILE: J.java
 public class J {
     @Deprecated
@@ -16,7 +17,7 @@ interface WithDeprecation {
 }
 
 class A : J(), WithDeprecation {
-    override fun <!OVERRIDE_DEPRECATION("This deprecation won't be inherited in future releases. ")!>foo<!>() {}
+    override fun <!OVERRIDE_DEPRECATION("")!>foo<!>() {}
 }
 
 fun main() {

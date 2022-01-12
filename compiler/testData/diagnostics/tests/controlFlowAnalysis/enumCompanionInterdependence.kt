@@ -41,7 +41,7 @@ enum class EnumCompanion1(val x: Int) {
 }
 // Also should be reported for implicit receiver
 enum class EnumCompanion2(val x: Int) {
-    INSTANCE(<!UNINITIALIZED_ENUM_COMPANION!>foo<!>());
+    INSTANCE(<!UNINITIALIZED_ENUM_COMPANION!>foo()<!>);
 
     companion object {
         fun foo() = 42
