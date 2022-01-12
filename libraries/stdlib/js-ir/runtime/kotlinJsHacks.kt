@@ -30,16 +30,7 @@ internal fun safePropertySet(self: dynamic, setterName: String, propName: String
 }
 
 /**
- * Implements annotated function in JavaScript.
- * [code] string must contain JS expression that evaluates to JS function with signature that matches annotated kotlin function
- *
- * For example, a function that adds two Doubles:
- *
- *      @JsFun("(x, y) => x + y")
- *      fun jsAdd(x: Double, y: Double): Double =
- *          error("...")
- *
- * Code gets inserted as is without syntax verification.
+WARNING: It is a special variant of `js` function
+which gives an ability to capture outer variables and functions
  */
-@Target(AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY_SETTER)
-internal annotation class JsFun(val code: String)
+internal external fun jsCaptured(code: String, vararg captured: dynamic): dynamic

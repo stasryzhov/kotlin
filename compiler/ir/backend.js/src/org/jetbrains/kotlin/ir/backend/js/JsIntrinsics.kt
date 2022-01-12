@@ -138,6 +138,7 @@ class JsIntrinsics(private val irBuiltIns: IrBuiltIns, val context: JsIrBackendC
 
     val jsObjectCreate = getInternalFunction("objectCreate") // Object.create
     val jsCode = getInternalFunction("js") // js("<code>")
+    val jsCodeCaptured = getInternalFunction("jsCaptured") // jsCaptured("<code>", a, b, ...)
     val jsHashCode = getInternalFunction("hashCode")
     val jsGetNumberHashCode = getInternalFunction("getNumberHashCode")
     val jsGetObjectHashCode = getInternalFunction("getObjectHashCode")
@@ -292,7 +293,6 @@ class JsIntrinsics(private val irBuiltIns: IrBuiltIns, val context: JsIrBackendC
 
     // TODO move to IntrinsifyCallsLowering
     val doNotIntrinsifyAnnotationSymbol = context.symbolTable.referenceClass(context.getJsInternalClass("DoNotIntrinsify"))
-    val jsFunAnnotationSymbol = context.symbolTable.referenceClass(context.getJsInternalClass("JsFun"))
 
     // TODO move CharSequence-related stiff to IntrinsifyCallsLowering
     val charSequenceClassSymbol = context.symbolTable.referenceClass(context.getClass(FqName("kotlin.CharSequence")))

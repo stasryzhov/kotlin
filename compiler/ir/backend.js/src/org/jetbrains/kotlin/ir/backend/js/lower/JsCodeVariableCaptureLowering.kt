@@ -6,17 +6,20 @@
 package org.jetbrains.kotlin.ir.backend.js.lower
 
 import org.jetbrains.kotlin.backend.common.*
+import org.jetbrains.kotlin.backend.common.lower.createIrBuilder
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.IrStatement
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.backend.js.JsIrBackendContext
-import org.jetbrains.kotlin.ir.backend.js.ast.JsCapturedName
 import org.jetbrains.kotlin.ir.backend.js.transformers.irToJs.translateJsCodeIntoStatementList
+import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.expressions.impl.IrFunctionReferenceImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrGetValueImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrVarargImpl
 import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
+import org.jetbrains.kotlin.ir.util.isFunctionOrKFunction
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
@@ -96,7 +99,7 @@ private class JsCodeVariableCapturingTransformer(
             val scope = localScopes[i]
             val variants = scope[name] ?: continue
             val possibleCapture = when {
-                isCalled -> variants.find { it is IrSimpleFunction }
+                isCalled -> variants.find { it.isFunction() }
                 else -> variants.last()
             }
             return possibleCapture ?: continue
@@ -104,12 +107,13 @@ private class JsCodeVariableCapturingTransformer(
         return null
     }
 
-    private fun findValueDeclaration(name: String): IrValueDeclaration? {
-        return findDeclarationWithName(name, false) as IrValueDeclaration?
-    }
-
-    private fun findFunctionDeclaration(name: String): IrSimpleFunction? {
-        return findDeclarationWithName(name, true) as IrSimpleFunction?
+    private fun IrDeclarationWithName.isFunction(): Boolean {
+        return when (this) {
+            is IrSimpleFunction -> true
+            is IrValueParameter -> type.isFunctionOrKFunction() || type == backendContext.dynamicType
+            is IrValueDeclaration -> type.isFunctionOrKFunction() || type == backendContext.dynamicType
+            else -> false
+        }
     }
 
     override fun visitContainerExpression(expression: IrContainerExpression): IrExpression {
@@ -133,25 +137,48 @@ private class JsCodeVariableCapturingTransformer(
     }
 
     override fun visitCall(expression: IrCall): IrExpression {
-        return expression
-            .apply { withCapturedVarsByJsCodeIfNeeded() }
-            .also { super.visitCall(it) }
+        return expression.withCapturedVarsByJsCodeIfNeeded() ?: super.visitCall(expression)
     }
 
-    fun IrCall.withCapturedVarsByJsCodeIfNeeded() {
-        if (symbol != backendContext.intrinsics.jsCode) return
+    fun IrCall.withCapturedVarsByJsCodeIfNeeded(): IrExpression? {
+        if (symbol != backendContext.intrinsics.jsCode) return null
 
         val jsCodeArg = getValueArgument(0) ?: compilationException("Expected js code string", this)
-        val jsStatements = translateJsCodeIntoStatementList(jsCodeArg, backendContext) ?: return
-
-        // Collect used Kotlin local variables and parameters.
+        val jsStatements = translateJsCodeIntoStatementList(jsCodeArg, backendContext) ?: return null
         val scopesCollector = JsScopesCollector().apply { acceptList(jsStatements) }
+        // Collect used Kotlin local variables and parameters.
+        val capturedNameSaver = JsCapturedNameSaver(scopesCollector).apply { acceptList(jsStatements) }
 
-        JsCapturedNameSaver(scopesCollector).acceptList(jsStatements)
+        if (!capturedNameSaver.haveCapturedVariablesInside()) return null
+
+        return with(backendContext.createIrBuilder(container.symbol)) {
+            irCall(backendContext.intrinsics.jsCodeCaptured.owner).apply {
+                putValueArgument(0, jsCodeArg)
+                putValueArgument(
+                    1,
+                    IrVarargImpl(
+                        UNDEFINED_OFFSET,
+                        UNDEFINED_OFFSET,
+                        backendContext.dynamicType,
+                        backendContext.dynamicType,
+                        capturedNameSaver.getCapturedNames()
+                    )
+                )
+            }
+        }
     }
 
     private inner class JsCapturedNameSaver(val scopesInfo: JsScopesCollector) : RecursiveJsVisitor() {
+        private val captured = mutableSetOf<IrVarargElement>()
         private val functionStack = mutableListOf<JsFunction>()
+
+        fun haveCapturedVariablesInside(): Boolean {
+            return captured.isNotEmpty()
+        }
+
+        fun getCapturedNames(): List<IrVarargElement> {
+            return captured.toList()
+        }
 
         override fun visitFunction(x: JsFunction) {
             functionStack.push(x)
@@ -165,28 +192,29 @@ private class JsCodeVariableCapturingTransformer(
             // We will also collect shadowed usages, but it is OK since the same shadowing will be present in generated JS code.
             if (nameRef.qualifier != null || nameRef.isException()) return
             // Keeping track of processed names to avoid registering them multiple times
-            val declaration = findValueDeclaration(nameRef.ident) ?: findFunctionDeclaration(nameRef.ident)
-            nameRef.capture(declaration?.toCapturableReference() ?: return)
+            val declaration = findDeclarationWithName(nameRef.ident, isCalled = false)
+            capture(declaration?.toCapturableReference() ?: return)
         }
 
         override fun visitInvocation(invocation: JsInvocation) {
-            val target = invocation.qualifier as? JsNameRef ?: return super.visitInvocation(invocation)
-            val declaration = findFunctionDeclaration(target.ident) ?: findValueDeclaration(target.ident)
+            val nameRef = invocation.qualifier as? JsNameRef
+            val target = nameRef?.takeIf { it.qualifier == null && !it.isException() } ?: return super.visitInvocation(invocation)
+            val declaration = findDeclarationWithName(target.ident, isCalled = true)
             val capturableReference = declaration?.toCapturableReference()
 
             if (capturableReference != null) {
-                target.capture(capturableReference)
+                capture(capturableReference)
             }
 
             acceptList(invocation.arguments)
         }
 
         private fun JsNameRef.isException(): Boolean {
-            return scopesInfo.isTheVarWithNameExistsInScopeOf(functionStack.firstOrNull(), ident)
+            return scopesInfo.isTheVarWithNameExistsInScopeOf(functionStack.peek(), ident)
         }
 
-        private fun JsNameRef.capture(element: IrVarargElement) {
-            name = JsCapturedName(ident, element)
+        private fun capture(element: IrVarargElement) {
+            captured.add(element)
         }
 
         private fun IrDeclarationWithName.toCapturableReference(): IrVarargElement? =
@@ -210,7 +238,7 @@ private class JsCodeVariableCapturingTransformer(
     }
 }
 
-private class JsScopesCollector : RecursiveJsVisitor() {
+class JsScopesCollector : RecursiveJsVisitor() {
     private val functionsStack = mutableListOf(Scope(null))
     private val functionalScopes = mutableMapOf<JsFunction?, Scope>(null to functionsStack.first())
 

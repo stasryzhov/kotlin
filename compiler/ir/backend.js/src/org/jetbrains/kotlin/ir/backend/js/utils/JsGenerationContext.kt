@@ -76,5 +76,9 @@ class JsGenerationContext(
         }
     }
 
-    fun checkIfJsCode(symbol: IrFunctionSymbol): Boolean = symbol == staticContext.backendContext.intrinsics.jsCode
+    fun checkIfJsCode(symbol: IrFunctionSymbol): Boolean =
+        symbol == staticContext.backendContext.intrinsics.jsCode ||
+                symbol == staticContext.backendContext.intrinsics.jsCodeCaptured
+
+    fun checkIfJsCodeCaptured(symbol: IrFunctionSymbol): Boolean = symbol == staticContext.backendContext.intrinsics.jsCodeCaptured
 }
