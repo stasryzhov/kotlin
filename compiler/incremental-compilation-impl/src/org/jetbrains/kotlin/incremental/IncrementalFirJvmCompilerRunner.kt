@@ -189,65 +189,70 @@ class IncrementalFirJvmCompilerRunner(
             val diagnosticsReporter = DiagnosticReporterFactory.createReporter()
             val compilerEnvironment = ModuleCompilerEnvironment(projectEnvironment, diagnosticsReporter)
 
-            val firModules = mutableListOf<ModuleCompilerAnalyzedOutput>()
-
             // !! main class - maybe from cache?
             var mainClassFqName: FqName? = null
 
-            while (true) {
+            fun firIncrementalCycle(): ModuleCompilerAnalyzedOutput? {
+                while (true) {
 
-                val compilerInput = ModuleCompilerInput(
-                    targetId,
-                    CommonPlatforms.defaultCommonPlatform, dirtySources.filter { it in allCommonSourceFiles },
-                    JvmPlatforms.unspecifiedJvmPlatform, dirtySources.filter { it in allPlatformSourceFiles },
-                    configuration,
-                    firModules.map { it.session.moduleData }
-                )
-
-                val analysisResults =
-                    compileModuleToAnalyzedFir(
-                        compilerInput, compilerEnvironment, firModules.map { it.session.firProvider.symbolProvider }, diagnosticsReporter
+                    val compilerInput = ModuleCompilerInput(
+                        targetId,
+                        CommonPlatforms.defaultCommonPlatform, dirtySources.filter { it in allCommonSourceFiles },
+                        JvmPlatforms.unspecifiedJvmPlatform, dirtySources.filter { it in allPlatformSourceFiles },
+                        configuration
                     )
 
-                firModules.add(analysisResults)
+                    val analysisResults =
+                        compileModuleToAnalyzedFir(
+                            compilerInput,
+                            compilerEnvironment,
+                            emptyList(),
+                            diagnosticsReporter
+                        )
 
-                // TODO: consider what to do if many compilations find a main class
-                if (mainClassFqName == null && configuration.get(JVMConfigurationKeys.OUTPUT_JAR) != null) {
-                    mainClassFqName = findMainClass(analysisResults.fir)
-                }
-
-                allCompiledSources.addAll(dirtySources)
-
-                if (diagnosticsReporter.hasErrors) {
-                    FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, collector)
-                    return ExitCode.COMPILATION_ERROR to allCompiledSources
-                }
-
-                if (!isIncremental) break
-                dirtySources = collectNewDirtySources(analysisResults, targetId, configuration, caches, allCompiledSources, reporter).also {
-                    if (it.isNotEmpty()) {
-                        caches.platformCache.markDirty(it)
-                        caches.inputsCache.removeOutputForSourceFiles(it)
+                    // TODO: consider what to do if many compilations find a main class
+                    if (mainClassFqName == null && configuration.get(JVMConfigurationKeys.OUTPUT_JAR) != null) {
+                        mainClassFqName = findMainClass(analysisResults.fir)
                     }
+
+                    allCompiledSources.addAll(dirtySources)
+
+                    if (diagnosticsReporter.hasErrors) {
+                        FirDiagnosticsCompilerResultsReporter.reportToMessageCollector(diagnosticsReporter, collector)
+                        return null
+                    }
+
+                    if (!isIncremental) return analysisResults
+
+                    val newDirtySources =
+                        collectNewDirtySources(analysisResults, targetId, configuration, caches, allCompiledSources, reporter).also {
+                            if (it.isNotEmpty()) {
+                                caches.platformCache.markDirty(it)
+                                caches.inputsCache.removeOutputForSourceFiles(it)
+                            }
+                        }
+
+                    if (newDirtySources.isEmpty()) return analysisResults
+
+                    dirtySources.addAll(newDirtySources)
                 }
-                if (dirtySources.isEmpty()) break;
             }
+
+            val cycleResult = firIncrementalCycle() ?: return ExitCode.COMPILATION_ERROR to allCompiledSources
 
             val extensions = JvmGeneratorExtensionsImpl(configuration)
             val irGenerationExtensions =
                 (projectEnvironment as? VfsBasedProjectEnvironment)?.project?.let { IrGenerationExtension.getInstances(it) }.orEmpty()
             val signaturer = JvmIdSignatureDescriptor(JvmDescriptorMangler(null))
-            val allCommonFirFiles = firModules.flatMap { it.session.moduleData.dependsOnDependencies }
+            val allCommonFirFiles = cycleResult.session.moduleData.dependsOnDependencies
                 .map { it.session }
                 .filter { it.kind == FirSession.Kind.Source }
                 .flatMap { (it.firProvider as FirProviderImpl).getAllFirFiles() }
 
-            val firstFirModule = firModules.first()
-
             val (irModuleFragment, symbolTable, components) = Fir2IrConverter.createModuleFragment(
-                firstFirModule.session, firstFirModule.scopeSession, firModules.flatMap { it.fir } + allCommonFirFiles,
-                firstFirModule.session.languageVersionSettings, signaturer,
-                extensions, FirJvmKotlinMangler(firstFirModule.session), IrFactoryImpl,
+                cycleResult.session, cycleResult.scopeSession, cycleResult.fir + allCommonFirFiles,
+                cycleResult.session.languageVersionSettings, signaturer,
+                extensions, FirJvmKotlinMangler(cycleResult.session), IrFactoryImpl,
                 FirJvmVisibilityConverter,
                 Fir2IrJvmSpecialAnnotationSymbolProvider(),
                 irGenerationExtensions
@@ -260,7 +265,7 @@ class IncrementalFirJvmCompilerRunner(
                 irModuleFragment,
                 symbolTable,
                 components,
-                firstFirModule.session
+                cycleResult.session
             )
 
             val codegenOutput = generateCodeFromIr(irInput, compilerEnvironment)
