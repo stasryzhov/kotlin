@@ -224,7 +224,7 @@ abstract class AbstractKotlinCompile<T : CommonCompilerArguments> : AbstractKotl
     protected val objects: ObjectFactory = project.objects
 
     // avoid creating directory in getter: this can lead to failure in parallel build
-    @get:LocalState
+    @get:OutputDirectory
     internal val taskBuildDirectory: DirectoryProperty = objects.directoryProperty()
 
     @get:Internal
