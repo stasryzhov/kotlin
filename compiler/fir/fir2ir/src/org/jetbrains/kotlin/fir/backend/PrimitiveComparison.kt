@@ -60,7 +60,7 @@ private fun ConeClassLikeType.promoteIntegerTypeToIntIfRequired(): ConeClassLike
 private fun ConeKotlinType.getPrimitiveTypeOrSupertype(): ConeClassLikeType? =
     when {
         this is ConeTypeParameterType ->
-            this.lookupTag.typeParameterSymbol.fir.bounds.firstNotNullOfOrNull {
+            this.lookupTag.typeParameterSymbol.resolvedBounds.firstNotNullOfOrNull {
                 it.coneType.getPrimitiveTypeOrSupertype()
             }
         this is ConeClassLikeType && isPrimitiveNumberType() ->

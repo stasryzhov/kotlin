@@ -90,7 +90,7 @@ class DelegatedMemberGenerator(
             is FirRegularClassSymbol -> fir
             is FirAnonymousObjectSymbol -> fir
             is FirTypeParameterSymbol ->
-                fir.bounds.first().coneType.fullyExpandedType(session).lowerBoundIfFlexible().toSymbol(session).boundClass()
+                resolvedBounds.first().coneType.fullyExpandedType(session).lowerBoundIfFlexible().toSymbol(session).boundClass()
             is FirTypeAliasSymbol, null -> throw AssertionError(this?.fir?.render())
         }
     }

@@ -68,7 +68,7 @@ internal class AdapterGenerator(
             if (typeParameters.size != type.typeArguments.size) return null
             val newTypeArguments = typeParameters.zip(type.typeArguments).map { (parameter, argument) ->
                 if (argument == ConeStarProjection) {
-                    parameter.bounds.first().coneType
+                    parameter.symbol.resolvedBounds.first().coneType
                 } else {
                     argument
                 }

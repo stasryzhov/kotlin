@@ -193,7 +193,7 @@ open class FirJvmMangleComputer(
         tpBuilder.appendSignature(index)
         tpBuilder.appendSignature(MangleConstant.UPPER_BOUND_SEPARATOR)
 
-        param.bounds.map { it.coneType }.collectForMangler(tpBuilder, MangleConstant.UPPER_BOUNDS) {
+        param.symbol.resolvedBounds.map { it.coneType }.collectForMangler(tpBuilder, MangleConstant.UPPER_BOUNDS) {
             mangleType(this, it)
         }
     }
