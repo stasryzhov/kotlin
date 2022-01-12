@@ -26,9 +26,7 @@ import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.konan.target.presetName
 import org.junit.Assume
 import org.junit.Ignore
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.ErrorCollector
 import java.io.File
 import java.util.*
 import kotlin.test.assertEquals
@@ -55,6 +53,14 @@ internal object MPPNativeTargets {
 
 internal fun BaseGradleIT.transformNativeTestProject(
     projectName: String,
+    wrapperVersion: GradleVersion,
+    directoryPrefix: String? = null
+): BaseGradleIT.Project {
+    return transformNativeTestProject(projectName, GradleVersionRequired.Exact(wrapperVersion.version), directoryPrefix)
+}
+
+internal fun BaseGradleIT.transformNativeTestProject(
+    projectName: String,
     wrapperVersion: GradleVersionRequired = defaultGradleVersion,
     directoryPrefix: String? = null
 ): BaseGradleIT.Project {
@@ -66,6 +72,14 @@ internal fun BaseGradleIT.transformNativeTestProject(
         disableKotlinNativeCaches()
     }
     return project
+}
+
+internal fun BaseGradleIT.transformNativeTestProjectWithPluginDsl(
+    projectName: String,
+    wrapperVersion: GradleVersion,
+    directoryPrefix: String? = null
+): BaseGradleIT.Project {
+    return transformNativeTestProjectWithPluginDsl(projectName, GradleVersionRequired.Exact(wrapperVersion.version), directoryPrefix)
 }
 
 internal fun BaseGradleIT.transformNativeTestProjectWithPluginDsl(

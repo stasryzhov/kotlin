@@ -154,11 +154,12 @@ abstract class BaseGradleIT {
         fun prepareWrapper(
             version: String,
             environmentVariables: Map<String, String> = mapOf(),
-            withDaemon: Boolean = true
+            withDaemon: Boolean = true,
+            stopDaemons: Boolean = true
         ): File {
             val wrapper = gradleWrappers.getOrPut(version) { createNewWrapperDir(version) }
 
-            if (withDaemon) {
+            if (withDaemon && stopDaemons) {
                 DaemonRegistry.register(version)
 
                 if (DaemonRegistry.activeDaemons.size > MAX_ACTIVE_GRADLE_PROCESSES) {
@@ -267,6 +268,7 @@ abstract class BaseGradleIT {
         val abiSnapshot: Boolean = false,
         val hierarchicalMPPStructureSupport: Boolean? = null,
         val enableCompatibilityMetadataVariant: Boolean? = null,
+        val stopDaemons: Boolean = true,
     )
 
     enum class ConfigurationCacheProblems {
@@ -288,6 +290,15 @@ abstract class BaseGradleIT {
         val minLogLevel: LogLevel = LogLevel.DEBUG,
         val addHeapDumpOptions: Boolean = true
     ) {
+
+        constructor(
+            projectName: String,
+            gradleVersion: GradleVersion,
+            directoryPrefix: String? = null,
+            minLogLevel: LogLevel = LogLevel.DEBUG,
+            addHeapDumpOptions: Boolean = true
+        ) : this(projectName, GradleVersionRequired.Exact(gradleVersion.version), directoryPrefix, minLogLevel, addHeapDumpOptions)
+
         internal val testCase = this@BaseGradleIT
 
         val resourceDirName = if (directoryPrefix != null) "$directoryPrefix/$projectName" else projectName
@@ -417,7 +428,7 @@ abstract class BaseGradleIT {
         val wrapperVersion = chooseWrapperVersionOrFinishTest()
 
         val env = createEnvironmentVariablesMap(options)
-        val wrapperDir = prepareWrapper(wrapperVersion, env)
+        val wrapperDir = prepareWrapper(wrapperVersion, env, stopDaemons = options.stopDaemons)
 
         val cmd = createBuildCommand(wrapperDir, params, options)
 
