@@ -32,7 +32,6 @@ import org.jetbrains.kotlin.resolve.calls.model.PostponedAtomWithRevisableExpect
 import org.jetbrains.kotlin.types.model.KotlinTypeMarker
 import org.jetbrains.kotlin.types.model.TypeConstructorMarker
 import org.jetbrains.kotlin.types.model.TypeVariableMarker
-import org.jetbrains.kotlin.types.model.TypeVariableTypeConstructorMarker
 import org.jetbrains.kotlin.utils.addIfNotNull
 import org.jetbrains.kotlin.utils.addToStdlib.cast
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
@@ -151,7 +150,7 @@ class ConstraintSystemCompleter(components: BodyResolveComponents, private val c
 
             // Stage 7: try to complete call with the builder inference if there are uninferred type variables
             val areThereAppearedProperConstraintsForSomeVariable = tryToCompleteWithBuilderInference(
-                completionMode, topLevelType, postponedArguments, analyze
+                completionMode, topLevelAtoms, topLevelType, postponedArguments, collectVariablesFromContext, analyze
             )
 
             if (areThereAppearedProperConstraintsForSomeVariable)
@@ -174,8 +173,10 @@ class ConstraintSystemCompleter(components: BodyResolveComponents, private val c
 
     private fun ConstraintSystemCompletionContext.tryToCompleteWithBuilderInference(
         completionMode: ConstraintSystemCompletionMode,
+        topLevelAtoms: List<FirStatement>,
         topLevelType: ConeKotlinType,
         postponedArguments: List<PostponedResolvedAtom>,
+        collectVariablesFromContext: Boolean,
         analyze: (PostponedResolvedAtom) -> Unit
     ): Boolean {
         if (completionMode == ConstraintSystemCompletionMode.PARTIAL) return false
@@ -184,7 +185,6 @@ class ConstraintSystemCompleter(components: BodyResolveComponents, private val c
         if (!languageVersionSettings.supportsFeature(LanguageFeature.UseBuilderInferenceOnlyIfNeeded)) return false
 
         val lambdaArguments = postponedArguments.filterIsInstance<ResolvedLambdaAtom>().takeIf { it.isNotEmpty() } ?: return false
-        val allNotFixedInputTypeVariables = mutableSetOf<TypeVariableTypeConstructorMarker>()
 
         // We assume useBuilderInferenceWithoutAnnotation = true for FIR
 
@@ -194,9 +194,6 @@ class ConstraintSystemCompleter(components: BodyResolveComponents, private val c
 
             if (notFixedInputTypeVariables.isEmpty()) continue
 
-            // NB: in FE 1.0 we don't collect this list here
-            allNotFixedInputTypeVariables.addAll(notFixedInputTypeVariables)
-
             for (variable in notFixedInputTypeVariables) {
                 getBuilder().markPostponedVariable(notFixedTypeVariables.getValue(variable).typeVariable)
             }
@@ -205,7 +202,7 @@ class ConstraintSystemCompleter(components: BodyResolveComponents, private val c
         }
 
         val variableForFixation = variableFixationFinder.findFirstVariableForFixation(
-            this, allNotFixedInputTypeVariables.toList(), postponedArguments, completionMode, topLevelType
+            this, getOrderedAllTypeVariables(collectVariablesFromContext, topLevelAtoms), postponedArguments, completionMode, topLevelType
         )
 
         // continue completion (rerun stages) only if ready for fixation variables with proper constraints have appeared
