@@ -11,6 +11,10 @@ public val <T : kotlin.Any> kotlin.reflect.KClass<T>.js: kotlin.js.JsClass<T> { 
 
 public val <T : kotlin.Any> kotlin.js.JsClass<T>.kotlin: kotlin.reflect.KClass<T> { get; }
 
+public fun Date(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int, millisecond: kotlin.Number): kotlin.js.Date
+
+public fun Date(milliseconds: kotlin.Number): kotlin.js.Date
+
 public inline fun dateLocaleOptions(init: kotlin.js.Date.LocaleOptions.() -> kotlin.Unit): kotlin.js.Date.LocaleOptions
 
 public external fun eval(expr: kotlin.String): dynamic
@@ -29,6 +33,8 @@ public external fun parseInt(s: kotlin.String): kotlin.Int
 
 @kotlin.Deprecated(level = DeprecationLevel.ERROR, message = "Use toInt(radix) instead.", replaceWith = kotlin.ReplaceWith(expression = "s.toInt(radix)", imports = {}))
 public external fun parseInt(s: kotlin.String, radix: kotlin.Int = ...): kotlin.Int
+
+public fun kotlin.js.Date.Companion.UTC(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int, millisecond: kotlin.Number): kotlin.Double
 
 public fun kotlin.js.Json.add(other: kotlin.js.Json): kotlin.js.Json
 
@@ -71,6 +77,8 @@ public external interface Console {
 public final external class Date {
     public constructor Date()
 
+    public constructor Date(milliseconds: kotlin.Double)
+
     public constructor Date(year: kotlin.Int, month: kotlin.Int)
 
     public constructor Date(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int)
@@ -81,9 +89,7 @@ public final external class Date {
 
     public constructor Date(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int)
 
-    public constructor Date(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int, millisecond: kotlin.Number)
-
-    public constructor Date(milliseconds: kotlin.Number)
+    public constructor Date(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int, millisecond: kotlin.Double)
 
     public constructor Date(dateString: kotlin.String)
 
@@ -156,7 +162,7 @@ public final external class Date {
 
         public final fun UTC(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int): kotlin.Double
 
-        public final fun UTC(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int, millisecond: kotlin.Number): kotlin.Double
+        public final fun UTC(year: kotlin.Int, month: kotlin.Int, day: kotlin.Int, hour: kotlin.Int, minute: kotlin.Int, second: kotlin.Int, millisecond: kotlin.Double): kotlin.Double
 
         public final fun now(): kotlin.Double
 

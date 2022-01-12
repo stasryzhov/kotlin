@@ -10,7 +10,7 @@ package kotlin.js
  */
 @Suppress("NOT_DOCUMENTED")
 public external class Date() {
-    public constructor(milliseconds: Number)
+    public constructor(milliseconds: Double)
 
     public constructor(dateString: String)
 
@@ -24,7 +24,7 @@ public external class Date() {
 
     public constructor(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int)
 
-    public constructor(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, millisecond: Number)
+    public constructor(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, millisecond: Double)
 
     public fun getDate(): Int
 
@@ -99,7 +99,7 @@ public external class Date() {
 
         public fun UTC(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int): Double
 
-        public fun UTC(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, millisecond: Number): Double
+        public fun UTC(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, millisecond: Double): Double
     }
 
     public interface LocaleOptions {
@@ -136,3 +136,12 @@ public inline fun dateLocaleOptions(init: Date.LocaleOptions.() -> Unit): Date.L
     init(result)
     return result
 }
+
+// Since we represent Long as an object, we need to convert it to a primitive.
+public fun Date(milliseconds: Number): Date = Date(milliseconds.toDouble())
+
+public fun Date(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, millisecond: Number): Date =
+    Date(year, month, day, hour, minute, second, millisecond.toDouble())
+
+public fun Date.Companion.UTC(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, millisecond: Number): Double =
+    UTC(year, month, day, hour, minute, second, millisecond.toDouble())
