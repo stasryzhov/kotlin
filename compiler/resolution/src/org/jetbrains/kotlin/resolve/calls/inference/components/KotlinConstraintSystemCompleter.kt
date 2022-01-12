@@ -23,7 +23,7 @@ import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 class KotlinConstraintSystemCompleter(
     private val resultTypeResolver: ResultTypeResolver,
     val variableFixationFinder: VariableFixationFinder,
-    private val postponedArgumentInputTypesResolver: PostponedArgumentInputTypesResolver,
+    private val postponedArgumentsInputTypesResolver: PostponedArgumentInputTypesResolver,
     private val languageVersionSettings: LanguageVersionSettings
 ) {
     fun runCompletion(
@@ -73,8 +73,9 @@ class KotlinConstraintSystemCompleter(
         val topLevelTypeVariables = topLevelType.extractTypeVariables()
 
         completion@ while (true) {
-            // TODO
+            // TODO: This is very slow
             val postponedArguments = getOrderedNotAnalyzedPostponedArguments(topLevelAtoms)
+
             if (completionMode == ConstraintSystemCompletionMode.UNTIL_FIRST_LAMBDA && hasLambdaToAnalyze(postponedArguments)) return
 
             // Stage 1: analyze postponed arguments with fixed parameter types
@@ -89,12 +90,13 @@ class KotlinConstraintSystemCompleter(
             if (postponedArguments.isEmpty() && !isThereAnyReadyForFixationVariable)
                 break
 
-            val postponedArgumentsWithRevisableType = postponedArguments.filterIsInstance<PostponedAtomWithRevisableExpectedType>()
+            val postponedArgumentsWithRevisableType = postponedArguments
+                .filterIsInstance<PostponedAtomWithRevisableExpectedType>()
             val dependencyProvider =
                 TypeVariableDependencyInformationProvider(notFixedTypeVariables, postponedArguments, topLevelType, this)
 
             // Stage 2: collect parameter types for postponed arguments
-            val wasBuiltNewExpectedTypeForSomeArgument = postponedArgumentInputTypesResolver.collectParameterTypesAndBuildNewExpectedTypes(
+            val wasBuiltNewExpectedTypeForSomeArgument = postponedArgumentsInputTypesResolver.collectParameterTypesAndBuildNewExpectedTypes(
                 this,
                 postponedArgumentsWithRevisableType,
                 completionMode,
@@ -108,7 +110,7 @@ class KotlinConstraintSystemCompleter(
             if (completionMode == ConstraintSystemCompletionMode.FULL) {
                 // Stage 3: fix variables for parameter types of all postponed arguments
                 for (argument in postponedArguments) {
-                    val variableWasFixed = postponedArgumentInputTypesResolver.fixNextReadyVariableForParameterTypeIfNeeded(
+                    val variableWasFixed = postponedArgumentsInputTypesResolver.fixNextReadyVariableForParameterTypeIfNeeded(
                         this,
                         argument,
                         postponedArguments,
@@ -236,7 +238,8 @@ class KotlinConstraintSystemCompleter(
         postponedArguments: List<PostponedResolvedAtom>,
         analyze: (PostponedResolvedAtom) -> Unit
     ): Boolean {
-        val useBuilderInferenceOnlyIfNeeded = languageVersionSettings.supportsFeature(LanguageFeature.UseBuilderInferenceOnlyIfNeeded)
+        val useBuilderInferenceOnlyIfNeeded =
+            languageVersionSettings.supportsFeature(LanguageFeature.UseBuilderInferenceOnlyIfNeeded)
         val argumentToAnalyze = if (useBuilderInferenceOnlyIfNeeded) {
             findPostponedArgumentWithFixedInputTypes(postponedArguments)
         } else {
@@ -271,7 +274,7 @@ class KotlinConstraintSystemCompleter(
             getOrderedAllTypeVariables(collectVariablesFromContext, topLevelAtoms),
             postponedArguments,
             completionMode,
-            topLevelType,
+            topLevelType
         ) != null
     }
 
@@ -313,7 +316,8 @@ class KotlinConstraintSystemCompleter(
         return analyzeArgumentWithFixedParameterTypes(postponedArguments, analyze)
     }
 
-    private fun findPostponedArgumentWithRevisableExpectedType(postponedArguments: List<PostponedResolvedAtom>) =
+    // Avoiding smart cast from filterIsInstanceOrNull looks dirty
+    private fun findPostponedArgumentWithRevisableExpectedType(postponedArguments: List<PostponedResolvedAtom>): PostponedResolvedAtom? =
         postponedArguments.firstOrNull { argument -> argument is PostponedAtomWithRevisableExpectedType }
 
     private fun ConstraintSystemCompletionContext.fixNextReadyVariable(
@@ -328,7 +332,7 @@ class KotlinConstraintSystemCompleter(
             getOrderedAllTypeVariables(collectVariablesFromContext, topLevelAtoms),
             postponedArguments,
             completionMode,
-            topLevelType,
+            topLevelType
         ) ?: return false
 
         if (!variableForFixation.hasProperConstraint) return false
