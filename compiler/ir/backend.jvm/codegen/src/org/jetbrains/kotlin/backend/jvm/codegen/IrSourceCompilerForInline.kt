@@ -77,7 +77,7 @@ class IrSourceCompilerForInline(
             val ktFile = codegen.irFunction.fileParent.getKtFile()
             if ((ktFile != null && ktFile.doNotAnalyze == null) || ktFile == null) {
                 state.trackLookup(callee.parentAsClass.kotlinFqName, jvmSignature.asmMethod.name, object : LocationInfo {
-                    override val filePath = ktFile?.virtualFile?.path ?: codegen.irFunction.fileParent.name
+                    override val filePath = ktFile?.virtualFile?.path ?: codegen.irFunction.fileParent.fileEntry.name
 
                     override val position: Position
                         get() =
