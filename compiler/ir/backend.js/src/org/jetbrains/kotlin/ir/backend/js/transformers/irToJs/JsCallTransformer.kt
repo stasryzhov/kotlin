@@ -123,7 +123,7 @@ private class JsCodeTransformer(
         nameRef.name = when {
             capturedFunction != null -> context.getNameForStaticFunction(capturedFunction.symbol.owner)
             capturedVariable != null -> context.getNameForValueDeclaration(capturedVariable.symbol.owner)
-            else -> return
+            else -> return super.visitInvocation(invocation)
         }
 
         acceptList(invocation.arguments)
