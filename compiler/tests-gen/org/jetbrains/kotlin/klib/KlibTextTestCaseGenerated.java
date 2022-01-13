@@ -1882,6 +1882,11 @@ public class KlibTextTestCaseGenerated extends AbstractKlibTextTestCase {
             runTest("compiler/testData/ir/irText/firProblems/kt43342.kt");
         }
 
+        @TestMetadata("LambdaInEnumEntry.kt")
+        public void testLambdaInEnumEntry() throws Exception {
+            runTest("compiler/testData/ir/irText/firProblems/LambdaInEnumEntry.kt");
+        }
+
         @TestMetadata("localClassUsedBeforeDeclaration.kt")
         public void testLocalClassUsedBeforeDeclaration() throws Exception {
             runTest("compiler/testData/ir/irText/firProblems/localClassUsedBeforeDeclaration.kt");
