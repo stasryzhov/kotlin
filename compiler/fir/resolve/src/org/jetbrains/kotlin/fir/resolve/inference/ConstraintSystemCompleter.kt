@@ -245,9 +245,20 @@ class ConstraintSystemCompleter(components: BodyResolveComponents, private val c
             topLevelType
         ) ?: return false
 
-        if (!variableForFixation.hasProperConstraint) return false
+        val variableWithConstraints = notFixedTypeVariables.getValue(variableForFixation.variable)
+        if (!variableForFixation.hasProperConstraint) {
+            if (context.inferenceSession.isSyntheticTypeVariable(variableWithConstraints.typeVariable)) {
+                context.inferenceSession.fixSyntheticTypeVariableWithNotEnoughInformation(
+                    variableWithConstraints.typeVariable as ConeTypeVariable,
+                    this
+                )
+                return true
+            }
 
-        fixVariable(this, topLevelType, notFixedTypeVariables.getValue(variableForFixation.variable), postponedArguments)
+            return false
+        }
+
+        fixVariable(this, topLevelType, variableWithConstraints, postponedArguments)
 
         return true
     }
