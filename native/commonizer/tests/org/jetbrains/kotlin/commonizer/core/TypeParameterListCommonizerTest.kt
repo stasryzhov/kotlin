@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirTypeParameter
 import org.jetbrains.kotlin.commonizer.utils.MOCK_CLASSIFIERS
 import org.junit.Test

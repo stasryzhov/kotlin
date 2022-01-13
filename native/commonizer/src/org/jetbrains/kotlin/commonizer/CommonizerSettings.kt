@@ -12,11 +12,11 @@ import org.jetbrains.kotlin.commonizer.cli.Task
  * Optional configuration settings for commonization task
  */
 interface CommonizerSettings {
-    fun <T : Any, S : CommonizerSettingOptionType<T>> getSetting(setting: S): T
+    fun <T : Any> getSetting(setting: CommonizerSettingOptionType<T>): T
 }
 
 internal object DefaultCommonizerSettings : CommonizerSettings {
-    override fun <T : Any, S : CommonizerSettingOptionType<T>> getSetting(setting: S): T {
+    override fun <T : Any> getSetting(setting: CommonizerSettingOptionType<T>): T {
         return setting.default
     }
 }
@@ -24,7 +24,24 @@ internal object DefaultCommonizerSettings : CommonizerSettings {
 internal class TaskBasedCommonizerSettings(
     private val task: Task
 ) : CommonizerSettings {
-    override fun <T : Any, S : CommonizerSettingOptionType<T>> getSetting(setting: S): T {
+    override fun <T : Any> getSetting(setting: CommonizerSettingOptionType<T>): T {
         return task.getCommonizerSetting(setting)
+    }
+}
+
+internal data class CommonizerSetting<T : Any>(
+    internal val setting: CommonizerSettingOptionType<T>,
+    internal val settingValue: T,
+)
+
+internal class MapBasedCommonizerSettings(
+    vararg settings: CommonizerSetting<*>
+) : CommonizerSettings {
+    private val settings: Map<CommonizerSettingOptionType<*>, Any> = settings.associate { (k, v) -> k to v }
+
+    override fun <T : Any> getSetting(setting: CommonizerSettingOptionType<T>): T {
+        @Suppress("UNCHECKED_CAST")
+        return settings[setting] as? T
+            ?: DefaultCommonizerSettings.getSetting(setting)
     }
 }

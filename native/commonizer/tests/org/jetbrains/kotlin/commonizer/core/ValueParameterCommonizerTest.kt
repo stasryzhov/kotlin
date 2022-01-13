@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
-import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.cir.CirName
 import org.jetbrains.kotlin.commonizer.cir.CirValueParameter
 import org.jetbrains.kotlin.commonizer.core.TypeCommonizerTest.Companion.areEqual

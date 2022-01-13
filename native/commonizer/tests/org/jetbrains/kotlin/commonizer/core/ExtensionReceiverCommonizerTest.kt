@@ -6,7 +6,6 @@
 package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.AbstractInlineSourcesCommonizationTest
-import org.jetbrains.kotlin.commonizer.DefaultCommonizerSettings
 import org.jetbrains.kotlin.commonizer.core.ExtensionReceiverCommonizer.Commonized
 import org.jetbrains.kotlin.commonizer.utils.MOCK_CLASSIFIERS
 import org.jetbrains.kotlin.commonizer.utils.mockExtensionReceiver
