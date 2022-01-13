@@ -1,0 +1,24 @@
+FILE: CollectionAndSequence.kt
+    public abstract interface Entities<Target> : R|kotlin/collections/MutableCollection<Target>|, R|kotlin/sequences/Sequence<Target>| {
+    }
+    public abstract class StringEntities : R|Entities<kotlin/String>| {
+        public constructor(): R|StringEntities| {
+            super<R|kotlin/Any|>()
+        }
+
+        public final fun foo(): R|kotlin/Unit| {
+            <Ambiguity: forEach, [kotlin/collections/forEach, kotlin/sequences/forEach]>#(<L> = forEach@fun <anonymous>(): <ERROR TYPE REF: Ambiguity: println, [kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println]> <inline=Unknown>  {
+                ^ <Ambiguity: println, [kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println]>#(<Unresolved name: it>#)
+            }
+            )
+        }
+
+    }
+    public abstract interface PageIterator<V> : R|kotlin/collections/Iterator<kotlin/collections/Collection<V>>|, R|kotlin/collections/Iterable<kotlin/collections/Collection<V>>| {
+    }
+    public final fun foo(pi: R|PageIterator<kotlin/String>|): R|kotlin/Unit| {
+        R|<local>/pi|.<Ambiguity: forEach, [kotlin/collections/forEach, kotlin/collections/forEach]>#(<L> = forEach@fun <anonymous>(): <ERROR TYPE REF: Ambiguity: println, [kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println]> <inline=Unknown>  {
+            ^ <Ambiguity: println, [kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println, kotlin/io/println]>#(<Unresolved name: it>#)
+        }
+        )
+    }
