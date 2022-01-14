@@ -12,10 +12,9 @@ import org.jetbrains.kotlin.commonizer.CommonizerOutputFileLayout
 import org.jetbrains.kotlin.commonizer.CommonizerOutputFileLayout.base64Hash
 import org.jetbrains.kotlin.commonizer.CommonizerOutputFileLayout.ensureMaxFileNameLength
 import org.jetbrains.kotlin.commonizer.CommonizerSetting
-import org.jetbrains.kotlin.commonizer.cli.PlatformIntegers
+import org.jetbrains.kotlin.commonizer.cli.PlatformIntegersAlias
 import org.jetbrains.kotlin.commonizer.identityString
 import org.jetbrains.kotlin.commonizer.setTo
-import org.jetbrains.kotlin.gradle.utils.filesProvider
 import org.jetbrains.kotlin.gradle.utils.outputFilesProvider
 import java.io.File
 
@@ -36,9 +35,9 @@ internal fun AbstractCInteropCommonizerTask.outputDirectory(group: CInteropCommo
         .resolve(base64Hash(groupDisambiguation))
 }
 
-internal fun DefaultTask.additionalCommonizerSettings(): List<CommonizerSetting<*>> =
+internal fun DefaultTask.additionalCommonizerSettings(): List<CommonizerSetting> =
     listOf(
-        PlatformIntegers setTo project.isPlatformIntegerCommonizationEnabled
+        PlatformIntegersAlias.argumentString setTo project.isPlatformIntegerCommonizationEnabled
     )
 
 internal fun AbstractCInteropCommonizerTask.commonizedOutputLibraries(dependent: CInteropCommonizerDependent): FileCollection {

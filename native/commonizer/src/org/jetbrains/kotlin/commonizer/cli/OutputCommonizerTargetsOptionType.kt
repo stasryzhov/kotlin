@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
@@ -8,12 +8,12 @@ package org.jetbrains.kotlin.commonizer.cli
 import org.jetbrains.kotlin.commonizer.SharedCommonizerTarget
 import org.jetbrains.kotlin.commonizer.parseCommonizerTarget
 
-public object OutputCommonizerTargetsOptionType : OptionType<Set<SharedCommonizerTarget>>(
-    alias = "output-targets",
+internal object OutputCommonizerTargetsOptionType : OptionType<Set<SharedCommonizerTarget>>(
+    alias = OutputCommonizerTargetsOptionAlias,
     description = "All output targets separated with ';'",
     mandatory = true
 ) {
-    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<Set<SharedCommonizerTarget>> {
+    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<Set<SharedCommonizerTarget>> {
         return try {
             Option(
                 this, rawValue.split(";")

@@ -17,7 +17,7 @@ interface CommonizerSettings {
 
 internal object DefaultCommonizerSettings : CommonizerSettings {
     override fun <T : Any> getSetting(setting: CommonizerSettingOptionType<T>): T {
-        return setting.default
+        return setting.defaultValue
     }
 }
 
@@ -28,11 +28,6 @@ internal class TaskBasedCommonizerSettings(
         return task.getCommonizerSetting(setting)
     }
 }
-
-internal data class CommonizerSetting<T : Any>(
-    internal val setting: CommonizerSettingOptionType<T>,
-    internal val settingValue: T,
-)
 
 internal class MapBasedCommonizerSettings(
     vararg settings: CommonizerSetting<*>
@@ -45,3 +40,8 @@ internal class MapBasedCommonizerSettings(
             ?: DefaultCommonizerSettings.getSetting(setting)
     }
 }
+
+internal data class CommonizerSetting<T : Any>(
+    internal val setting: CommonizerSettingOptionType<T>,
+    internal val settingValue: T,
+)

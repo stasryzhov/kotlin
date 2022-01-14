@@ -1,16 +1,16 @@
 /*
- * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.commonizer.cli
 
-public class BooleanOptionType(
-    alias: String,
+internal class BooleanOptionType(
+    alias: OptionAlias,
     description: String,
     mandatory: Boolean
 ) : OptionType<Boolean>(alias, description, mandatory) {
-    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<Boolean> {
+    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<Boolean> {
         val value = rawValue.lowercase().let {
             when (it) {
                 in TRUE_TOKENS -> true
@@ -22,7 +22,7 @@ public class BooleanOptionType(
         return Option(this, value)
     }
 
-    internal companion object {
+    companion object {
         internal val TRUE_TOKENS = setOf("1", "on", "yes", "true")
         internal val FALSE_TOKENS = setOf("0", "off", "no", "false")
     }

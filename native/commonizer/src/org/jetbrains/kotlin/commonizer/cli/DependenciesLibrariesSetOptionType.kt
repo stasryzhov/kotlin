@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2021 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
@@ -8,16 +8,16 @@ package org.jetbrains.kotlin.commonizer.cli
 import org.jetbrains.kotlin.commonizer.CommonizerDependency
 import org.jetbrains.kotlin.commonizer.parseCommonizerDependency
 
-public abstract class DependenciesLibrariesSetOptionType(
+abstract class DependenciesLibrariesSetOptionType(
     mandatory: Boolean,
-    alias: String,
+    alias: OptionAlias,
     description: String
 ) : OptionType<List<CommonizerDependency>>(
     mandatory = mandatory,
     alias = alias,
     description = description
 ) {
-    public override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<List<CommonizerDependency>> {
+    override fun parse(rawValue: String, onError: (reason: String) -> Nothing): Option<List<CommonizerDependency>> {
         if (rawValue.isBlank()) {
             return Option(this, emptyList())
         }
