@@ -6,6 +6,7 @@
 @file:JsQualifier("ArrayBuffer")
 package kotlin.js
 
+@JsName("isView")
 @JsNativeImplementation("""
 if (typeof ArrayBuffer.isView === "undefined") {
     ArrayBuffer.isView = function(a) {
