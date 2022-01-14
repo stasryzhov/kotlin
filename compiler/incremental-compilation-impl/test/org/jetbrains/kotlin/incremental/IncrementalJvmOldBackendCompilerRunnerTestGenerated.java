@@ -579,7 +579,7 @@ public class IncrementalJvmOldBackendCompilerRunnerTestGenerated extends Abstrac
 
         @TestMetadata("renameFileWithClassesOnly")
         public void testRenameFileWithClassesOnly() throws Exception {
-            runTest("jps-plugin/testData/incremental/pureKotlin/renameFileWithClassesOnly/");
+            runTest("jps/jps-plugin/testData/incremental/pureKotlin/renameFileWithClassesOnly/");
         }
 
         @TestMetadata("renameFileWithFunctionOverload")
