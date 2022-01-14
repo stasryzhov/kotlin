@@ -2635,10 +2635,8 @@ void startGC() {
 }
 
 void setGCThreshold(KInt value) {
+  RuntimeAssert(value > 0, "Must be handled by the caller");
   GC_LOG("setGCThreshold %d\n", value)
-  if (value <= 0) {
-    ThrowIllegalArgumentException();
-  }
   initGcThreshold(memoryState, value);
 }
 
@@ -2648,10 +2646,8 @@ KInt getGCThreshold() {
 }
 
 void setGCCollectCyclesThreshold(KLong value) {
+  RuntimeAssert(value > 0, "Must be handled by the caller");
   GC_LOG("setGCCollectCyclesThreshold %lld\n", value)
-  if (value <= 0) {
-    ThrowIllegalArgumentException();
-  }
   initGcCollectCyclesThreshold(memoryState, value);
 }
 
@@ -2661,10 +2657,8 @@ KInt getGCCollectCyclesThreshold() {
 }
 
 void setGCThresholdAllocations(KLong value) {
+  RuntimeAssert(value > 0, "Must be handled by the caller");
   GC_LOG("setGCThresholdAllocations %lld\n", value)
-  if (value <= 0) {
-    ThrowIllegalArgumentException();
-  }
 
   memoryState->allocSinceLastGcThreshold = value;
 }

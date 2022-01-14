@@ -32,15 +32,23 @@ public:
         lastAliveSetBytes_ = bytes;
 
         if (config_.autoTune.load()) {
-            size_t result = bytes / config_.targetHeapUtilization;
-            config_.targetHeapBytes = std::min(std::max(result, config_.minHeapBytes.load()), config_.maxHeapBytes.load());
+            double targetHeapBytes = static_cast<double>(bytes) / config_.targetHeapUtilization;
+            if (!std::isfinite(targetHeapBytes)) {
+                // This shouldn't happen in practice: targetHeapUtilization is in (0, 1]. But in case it does, don't touch anything.
+                return;
+            }
+            double minHeapBytes = static_cast<double>(config_.minHeapBytes.load());
+            double maxHeapBytes = static_cast<double>(config_.maxHeapBytes.load());
+            targetHeapBytes = std::min(std::max(targetHeapBytes, minHeapBytes), maxHeapBytes);
+            config_.targetHeapBytes = static_cast<int64_t>(targetHeapBytes);
         }
     }
 
     // Called by the mutators.
     bool NeedsGC() const noexcept {
-        size_t currentHeap = allocatedBytes_.load() + lastAliveSetBytes_.load();
-        return currentHeap >= config_.targetHeapBytes;
+        uint64_t currentHeapBytes = allocatedBytes_.load() + lastAliveSetBytes_.load();
+        uint64_t targetHeapBytes = config_.targetHeapBytes;
+        return currentHeapBytes >= targetHeapBytes;
     }
 
 private:
@@ -62,7 +70,7 @@ public:
     // Called by the mutators or the timer thread.
     bool NeedsGC() const noexcept {
         auto currentTimeProvider = currentTimeProvider_();
-        return currentTimeProvider >= lastGC_.load() + config_.regularGcInterval.load();
+        return currentTimeProvider >= lastGC_.load() + config_.regularGcInterval();
     }
 
     // Called by the GC thread.
@@ -91,11 +99,11 @@ public:
         heapGrowthController_(config),
         regularIntervalPacer_(config, currentTimeProvider),
         scheduleGC_(std::move(scheduleGC)),
-        timer_(config_.regularGcInterval.load(), [this]() {
+        timer_(config_.regularGcInterval(), [this]() {
             if (regularIntervalPacer_.NeedsGC()) {
                 scheduleGC_();
             }
-            return config_.regularGcInterval.load();
+            return config_.regularGcInterval();
         }) {}
 
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {
