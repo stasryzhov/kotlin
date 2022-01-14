@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.backend.common.CommonBackendContext
 import org.jetbrains.kotlin.backend.common.FileLoweringPass
 import org.jetbrains.kotlin.ir.backend.js.ir.JsIrBuilder
 import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrTypeParameter
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
 import org.jetbrains.kotlin.ir.types.*
@@ -26,9 +27,15 @@ private class JsStringConcatenationTransformer(val context: CommonBackendContext
 
     private val IrType.shouldExplicitlyConvertToString: Boolean
         get() {
+            if (this !is IrSimpleType) return false
+
+            val owner = classifier.owner
+            if (owner is IrTypeParameter) {
+                return owner.superTypes.any { it.shouldExplicitlyConvertToString }
+            }
+
             // If the type is Long or a supertype of Long, we want to call toString() on values of that type.
             // See KT-39891
-            if (this !is IrSimpleType) return false
             return when (classifier.signature) {
                 IdSignatureValues.any, IdSignatureValues.comparable, IdSignatureValues.number, IdSignatureValues._long -> true
                 else -> false
@@ -67,9 +74,6 @@ private class JsStringConcatenationTransformer(val context: CommonBackendContext
             return super.visitCall(expression)
 
         if (expression.symbol.isStringPlus)
-            return explicitlyConvertToStringIfNeeded()
-
-        if (expression.dispatchReceiver.safeAs<IrFunctionReference>()?.symbol?.isStringPlus == true)
             return explicitlyConvertToStringIfNeeded()
 
         return super.visitCall(expression)
