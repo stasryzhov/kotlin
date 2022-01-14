@@ -67,12 +67,12 @@ internal fun commonizeTarget(
 
         ReApproximationCirNodeTransformer(
             parameters.storageManager, classifiers,
-            SignatureBuildingContextProvider(classifiers, typeAliasInvariant = true, skipArguments = false),
+            SignatureBuildingContextProvider(classifiers, typeAliasInvariant = true, skipArguments = false)
         ).invoke(mergedTree)
 
         ReApproximationCirNodeTransformer(
             parameters.storageManager, classifiers,
-            SignatureBuildingContextProvider(classifiers, typeAliasInvariant = true, skipArguments = true),
+            SignatureBuildingContextProvider(classifiers, typeAliasInvariant = true, skipArguments = true)
         ).invoke(mergedTree)
 
         mergedTree.accept(CommonizationVisitor(mergedTree), Unit)

@@ -6,7 +6,6 @@
 package org.jetbrains.kotlin.commonizer.transformer
 
 import org.jetbrains.kotlin.commonizer.cir.CirHasTypeParameters
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.commonizer.mergedtree.*
 import org.jetbrains.kotlin.commonizer.mergedtree.CirNodeRelationship.ParentNode
 import org.jetbrains.kotlin.commonizer.mergedtree.ClassifierSignatureBuildingContext.TypeAliasInvariant
@@ -16,7 +15,7 @@ import org.jetbrains.kotlin.storage.StorageManager
 internal class ReApproximationCirNodeTransformer(
     private val storageManager: StorageManager,
     private val classifiers: CirKnownClassifiers,
-    private val signatureBuildingContextProvider: SignatureBuildingContextProvider,
+    private val signatureBuildingContextProvider: SignatureBuildingContextProvider
 ) : CirNodeTransformer {
 
     internal class SignatureBuildingContextProvider(

@@ -8,7 +8,7 @@ package org.jetbrains.kotlin.commonizer.cli
 import org.jetbrains.kotlin.commonizer.CommonizerDependency
 import org.jetbrains.kotlin.commonizer.parseCommonizerDependency
 
-abstract class DependenciesLibrariesSetOptionType(
+internal abstract class DependenciesLibrariesSetOptionType(
     mandatory: Boolean,
     alias: OptionAlias,
     description: String

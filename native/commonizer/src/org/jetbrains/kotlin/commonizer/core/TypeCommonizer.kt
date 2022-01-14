@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.commonizer.utils.safeCastValues
 
 class TypeCommonizer(
     private val classifiers: CirKnownClassifiers,
-    val options: Options = Options.default,
+    val options: Options = Options.default
 ) : NullableSingleInvocationCommonizer<CirType> {
 
     private val classOrTypeAliasTypeCommonizer = ClassOrTypeAliasTypeCommonizer(this, classifiers)

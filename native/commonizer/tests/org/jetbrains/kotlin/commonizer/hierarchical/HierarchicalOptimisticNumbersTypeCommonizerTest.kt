@@ -808,7 +808,7 @@ internal fun ParametersBuilder.registerFakeStdlibDependency(vararg outputTarget:
     }
 }
 
-internal fun InlineSourceBuilder.ModuleBuilder.unsignedIntegers() {
+private fun InlineSourceBuilder.ModuleBuilder.unsignedIntegers() {
     source(
         """
         package kotlin
@@ -820,7 +820,7 @@ internal fun InlineSourceBuilder.ModuleBuilder.unsignedIntegers() {
     )
 }
 
-internal fun InlineSourceBuilder.ModuleBuilder.unsingedVarIntegers() {
+private fun InlineSourceBuilder.ModuleBuilder.unsingedVarIntegers() {
     source(
         """
         package kotlinx.cinterop
@@ -832,7 +832,7 @@ internal fun InlineSourceBuilder.ModuleBuilder.unsingedVarIntegers() {
     )
 }
 
-internal fun InlineSourceBuilder.ModuleBuilder.singedVarIntegers() {
+private fun InlineSourceBuilder.ModuleBuilder.singedVarIntegers() {
     source(
         """
         package kotlinx.cinterop

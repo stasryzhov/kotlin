@@ -6,7 +6,6 @@
 package org.jetbrains.kotlin.commonizer.transformer
 
 import org.jetbrains.kotlin.commonizer.cir.*
-import org.jetbrains.kotlin.commonizer.CommonizerSettings
 import org.jetbrains.kotlin.commonizer.mergedtree.*
 import org.jetbrains.kotlin.commonizer.mergedtree.CirNodeRelationship.Composite.Companion.plus
 import org.jetbrains.kotlin.commonizer.mergedtree.CirNodeRelationship.ParentNode
@@ -116,7 +115,7 @@ internal class InlineTypeAliasCirNodeTransformer(
             //  Therefore, this artificial class node acts as a fallback with the original type-alias being still the preferred
             //  option for commonization
             nodeRelationship = ParentNode(this) + PreferredNode(typeAliasNode),
-            classId = typeAliasNode.id,
+            classId = typeAliasNode.id
         )
         this.classes[typeAliasNode.classifierName] = classNode
         return classNode
