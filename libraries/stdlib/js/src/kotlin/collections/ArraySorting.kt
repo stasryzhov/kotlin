@@ -5,8 +5,6 @@
 
 package kotlin.collections
 
-import kotlin.js.nativeSort
-
 internal fun <T> sortArrayWith(array: Array<out T>, comparison: (T, T) -> Int) {
     if (getStableSortingIsSupported()) {
         array.asDynamic().sort(comparison)
