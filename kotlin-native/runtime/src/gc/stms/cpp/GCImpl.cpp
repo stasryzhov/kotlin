@@ -85,3 +85,7 @@ void gc::GC::StopFinalizerThreadIfRunning() noexcept {}
 bool gc::GC::FinalizersThreadIsRunning() noexcept {
     return false;
 }
+
+void gc::GC::RestartGCSchedulerTimer() noexcept {
+    impl_->gcScheduler().gcData().RestartTimer();
+}

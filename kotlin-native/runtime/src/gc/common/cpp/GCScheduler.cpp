@@ -10,6 +10,7 @@
 #include "KAssert.h"
 #include "Porting.h"
 #include "RepeatedTimer.hpp"
+#include "Saturating.hpp"
 #include "ThreadRegistry.hpp"
 #include "ThreadData.hpp"
 
@@ -46,9 +47,8 @@ public:
 
     // Called by the mutators.
     bool NeedsGC() const noexcept {
-        uint64_t currentHeapBytes = allocatedBytes_.load() + lastAliveSetBytes_.load();
-        uint64_t targetHeapBytes = config_.targetHeapBytes;
-        return currentHeapBytes >= targetHeapBytes;
+        auto currentHeapBytes = allocatedBytes_.load() + lastAliveSetBytes_.load();
+        return currentHeapBytes >= config_.targetHeapBytes;
     }
 
 private:
@@ -59,26 +59,33 @@ private:
     std::atomic<size_t> lastAliveSetBytes_ = 0;
 };
 
+template <typename Clock>
 class RegularIntervalPacer {
 public:
-    using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
-    using CurrentTimeProvider = std::function<TimePoint()>;
+    using TimePoint = std::chrono::time_point<Clock>;
 
-    RegularIntervalPacer(gc::GCSchedulerConfig& config, CurrentTimeProvider currentTimeProvider) noexcept :
-        config_(config), currentTimeProvider_(currentTimeProvider), lastGC_(currentTimeProvider_()) {}
+    explicit RegularIntervalPacer(gc::GCSchedulerConfig& config) noexcept : config_(config), lastGC_(Clock::now()) {}
 
     // Called by the mutators or the timer thread.
-    bool NeedsGC() const noexcept {
-        auto currentTimeProvider = currentTimeProvider_();
-        return currentTimeProvider >= lastGC_.load() + config_.regularGcInterval();
+    TimePoint NextGCAt() const noexcept {
+        using TimePointSat = std::chrono::time_point<
+                typename TimePoint::clock, std::chrono::duration<kotlin::saturating<typename TimePoint::rep>, typename TimePoint::period>>;
+        using Interval = decltype(config_.regularGcInterval());
+        using IntervalSat = std::chrono::duration<kotlin::saturating<typename Interval::rep>, typename Interval::period>;
+
+        TimePointSat lastTime = lastGC_.load();
+        IntervalSat interval = config_.regularGcInterval();
+        return lastTime + interval;
     }
 
-    // Called by the GC thread.
-    void OnPerformFullGC() noexcept { lastGC_ = currentTimeProvider_(); }
+    // Called by the mutators or the timer thread.
+    bool NeedsGC() const noexcept { return Clock::now() >= NextGCAt(); }
+
+    // Called by the GC, timer and mutator threads.
+    void UpdateLastGCTime() noexcept { lastGC_ = Clock::now(); }
 
 private:
     gc::GCSchedulerConfig& config_;
-    CurrentTimeProvider currentTimeProvider_;
     // Updated by the GC thread, read by the mutators or the timer thread.
     std::atomic<TimePoint> lastGC_;
 };
@@ -87,27 +94,23 @@ class GCEmptySchedulerData : public gc::GCSchedulerData {
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {}
     void OnPerformFullGC() noexcept override {}
     void UpdateAliveSetBytes(size_t bytes) noexcept override {}
+    void RestartTimer() noexcept override {}
 };
 
-auto nextGCAt(const gc::GCSchedulerConfig& config) {
-    return std::chrono::steady_clock::now() + config.regularGcInterval();
-}
-
+template <typename Clock>
 class GCSchedulerDataWithTimer : public gc::GCSchedulerData {
 public:
-    GCSchedulerDataWithTimer(
-            gc::GCSchedulerConfig& config,
-            std::function<void()> scheduleGC,
-            RegularIntervalPacer::CurrentTimeProvider currentTimeProvider) noexcept :
-        config_(config),
+    GCSchedulerDataWithTimer(gc::GCSchedulerConfig& config, std::function<void()> scheduleGC) noexcept :
         heapGrowthController_(config),
-        regularIntervalPacer_(config, currentTimeProvider),
+        regularIntervalPacer_(config),
         scheduleGC_(std::move(scheduleGC)),
-        timer_(nextGCAt(config_), [this]() {
-            if (regularIntervalPacer_.NeedsGC()) {
-                scheduleGC_();
-            }
-            return nextGCAt(config_);
+        timer_(regularIntervalPacer_.NextGCAt(), [this]() {
+            // regularIntervalPacer_.NeedsGC() is expected to be true, but it's not safe to assert it, because clocks
+            // may drift apart on different threads.
+            scheduleGC_();
+            // Set the next firing time from the scheduling time. It'll be fixed up later in OnPerformFullGC call.
+            regularIntervalPacer_.UpdateLastGCTime();
+            return regularIntervalPacer_.NextGCAt();
         }) {}
 
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {
@@ -119,26 +122,26 @@ public:
 
     void OnPerformFullGC() noexcept override {
         heapGrowthController_.OnPerformFullGC();
-        regularIntervalPacer_.OnPerformFullGC();
+        regularIntervalPacer_.UpdateLastGCTime();
+        timer_.updateAt(regularIntervalPacer_.NextGCAt());
     }
 
     void UpdateAliveSetBytes(size_t bytes) noexcept override { heapGrowthController_.UpdateAliveSetBytes(bytes); }
 
+    void RestartTimer() noexcept override { timer_.updateAt(regularIntervalPacer_.NextGCAt()); }
+
 private:
-    gc::GCSchedulerConfig& config_;
     HeapGrowthController heapGrowthController_;
-    RegularIntervalPacer regularIntervalPacer_;
+    RegularIntervalPacer<Clock> regularIntervalPacer_;
     std::function<void()> scheduleGC_;
-    RepeatedTimer<std::chrono::steady_clock> timer_;
+    RepeatedTimer<Clock> timer_;
 };
 
+template <typename Clock>
 class GCSchedulerDataOnSafepoints : public gc::GCSchedulerData {
 public:
-    GCSchedulerDataOnSafepoints(
-            gc::GCSchedulerConfig& config,
-            std::function<void()> scheduleGC,
-            RegularIntervalPacer::CurrentTimeProvider currentTimeProvider) noexcept :
-        heapGrowthController_(config), regularIntervalPacer_(config, currentTimeProvider), scheduleGC_(std::move(scheduleGC)) {}
+    GCSchedulerDataOnSafepoints(gc::GCSchedulerConfig& config, std::function<void()> scheduleGC) noexcept :
+        heapGrowthController_(config), regularIntervalPacer_(config), scheduleGC_(std::move(scheduleGC)) {}
 
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {
         heapGrowthController_.OnAllocated(threadData.allocatedBytes());
@@ -146,19 +149,22 @@ public:
             scheduleGC_();
         } else if (regularIntervalPacer_.NeedsGC()) {
             scheduleGC_();
+            regularIntervalPacer_.UpdateLastGCTime();
         }
     }
 
     void OnPerformFullGC() noexcept override {
         heapGrowthController_.OnPerformFullGC();
-        regularIntervalPacer_.OnPerformFullGC();
+        regularIntervalPacer_.UpdateLastGCTime();
     }
 
     void UpdateAliveSetBytes(size_t bytes) noexcept override { heapGrowthController_.UpdateAliveSetBytes(bytes); }
 
+    void RestartTimer() noexcept override {}
+
 private:
     HeapGrowthController heapGrowthController_;
-    RegularIntervalPacer regularIntervalPacer_;
+    RegularIntervalPacer<Clock> regularIntervalPacer_;
     std::function<void()> scheduleGC_;
 };
 
@@ -176,6 +182,7 @@ public:
 
     void OnPerformFullGC() noexcept override {}
     void UpdateAliveSetBytes(size_t bytes) noexcept override {}
+    void RestartTimer() noexcept override {}
 
 private:
     std::function<void()> scheduleGC_;
@@ -183,18 +190,16 @@ private:
 
 } // namespace
 
+// TODO: Parametrise this with Clock to make it substitutable in tests.
 KStdUniquePtr<gc::GCSchedulerData> kotlin::gc::internal::MakeGCSchedulerData(
-        SchedulerType type,
-        gc::GCSchedulerConfig& config,
-        std::function<void()> scheduleGC,
-        std::function<std::chrono::time_point<std::chrono::steady_clock>()> currentTimeProvider) noexcept {
+        SchedulerType type, gc::GCSchedulerConfig& config, std::function<void()> scheduleGC) noexcept {
     switch (type) {
         case SchedulerType::kDisabled:
             return ::make_unique<GCEmptySchedulerData>();
         case SchedulerType::kWithTimer:
-            return ::make_unique<GCSchedulerDataWithTimer>(config, std::move(scheduleGC), std::move(currentTimeProvider));
+            return ::make_unique<GCSchedulerDataWithTimer<std::chrono::steady_clock>>(config, std::move(scheduleGC));
         case SchedulerType::kOnSafepoints:
-            return ::make_unique<GCSchedulerDataOnSafepoints>(config, std::move(scheduleGC), std::move(currentTimeProvider));
+            return ::make_unique<GCSchedulerDataOnSafepoints<std::chrono::steady_clock>>(config, std::move(scheduleGC));
         case SchedulerType::kAggressive:
             return ::make_unique<GCSchedulerDataAggressive>(config, std::move(scheduleGC));
     }
@@ -205,6 +210,5 @@ void gc::GCScheduler::SetScheduleGC(std::function<void()> scheduleGC) noexcept {
     RuntimeAssert(!static_cast<bool>(scheduleGC_), "scheduleGC must not have been set");
     scheduleGC_ = std::move(scheduleGC);
     RuntimeAssert(gcData_ == nullptr, "gcData_ must not be set prior to scheduleGC call");
-    gcData_ = internal::MakeGCSchedulerData(
-            compiler::getGCSchedulerType(), config_, scheduleGC_, []() { return std::chrono::steady_clock::now(); });
+    gcData_ = internal::MakeGCSchedulerData(compiler::getGCSchedulerType(), config_, scheduleGC_);
 }

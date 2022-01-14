@@ -32,19 +32,22 @@ struct GCSchedulerConfig {
     std::atomic<bool> autoTune = true;
     // The target interval between collections when Kotlin code is idle. GC will be triggered
     // by timer no sooner than this value and no later than twice this value since the previous collection.
-    std::atomic<int64_t> regularGcIntervalMicroseconds = 10 * 1000 * 1000;
+    std::atomic<int64_t> regularGcIntervalMicroseconds = std::chrono::microseconds(std::chrono::seconds(10)).count();
     // How many object bytes must be in the heap to trigger collection. Autotunes when autoTune is true.
-    std::atomic<int64_t> targetHeapBytes = 1024 * 1024;
+    std::atomic<uint64_t> targetHeapBytes = 1024 * 1024;
     // The rate at which targetHeapBytes changes when autoTune = true. Concretely: if after the collection
     // N object bytes remain in the heap, the next targetHeapBytes will be N / targetHeapUtilization capped
     // between minHeapBytes and maxHeapBytes.
     std::atomic<double> targetHeapUtilization = 0.5;
     // The minimum value of targetHeapBytes for autoTune = true
-    std::atomic<int64_t> minHeapBytes = 1024 * 1024;
+    std::atomic<uint64_t> minHeapBytes = 1024 * 1024;
     // The maximum value of targetHeapBytes for autoTune = true
-    std::atomic<int64_t> maxHeapBytes = std::numeric_limits<int64_t>::max();
+    std::atomic<uint64_t> maxHeapBytes = std::numeric_limits<uint64_t>::max();
 
-    std::chrono::microseconds regularGcInterval() const { return std::chrono::microseconds(regularGcIntervalMicroseconds.load()); }
+    std::chrono::microseconds regularGcInterval() const {
+        static_assert(std::is_same_v<std::chrono::microseconds::rep, decltype(regularGcIntervalMicroseconds)::value_type>);
+        return std::chrono::microseconds(regularGcIntervalMicroseconds.load());
+    }
 };
 
 class GCSchedulerThreadData;
@@ -65,6 +68,8 @@ public:
 
     // Always called by the GC thread.
     virtual void UpdateAliveSetBytes(size_t bytes) noexcept = 0;
+
+    virtual void RestartTimer() noexcept = 0;
 };
 
 class GCSchedulerThreadData {
@@ -168,8 +173,7 @@ namespace internal {
 KStdUniquePtr<gc::GCSchedulerData> MakeGCSchedulerData(
         SchedulerType type,
         GCSchedulerConfig& config,
-        std::function<void()> scheduleGC,
-        std::function<std::chrono::time_point<std::chrono::steady_clock>()> currentTime) noexcept;
+        std::function<void()> scheduleGC) noexcept;
 
 }
 

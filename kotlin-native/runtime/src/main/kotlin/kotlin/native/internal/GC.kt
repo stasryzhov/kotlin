@@ -140,8 +140,7 @@ object GC {
     /**
      * New MM only. Unused with on-safepoints GC scheduler.
      * When Kotlin code is not allocating enough to trigger GC, the GC scheduler uses timer to drive collection.
-     * Timer-triggered collection will happen roughly in [regularGCInterval] .. 2 * [regularGCInterval] since
-     * any previous collection.
+     * Timer-triggered collection will happen roughly after [regularGCInterval] since any previous collection.
      *
      * Default: 10 seconds
      *
@@ -165,15 +164,10 @@ object GC {
      * or [maxHeapBytes] is set too low), the next collection will be triggered almost immediately.
      *
      * Default: 1 MiB
-     *
-     * @throws [IllegalArgumentException] when value is negative.
      */
-    var targetHeapBytes: Long
+    var targetHeapBytes: ULong
         get() = getTargetHeapBytes()
-        set(value) {
-            require(value >= 0) { "targetHeapBytes must not be negative: $value" }
-            setTargetHeapBytes(value)
-        }
+        set(value) = setTargetHeapBytes(value)
 
     /**
      * New MM only.
@@ -197,31 +191,21 @@ object GC {
      * Only used if [autotune] is true. See [targetHeapBytes] for more details.
      *
      * Default: 1 MiB
-     *
-     * @throws [IllegalArgumentException] when value is negative.
      */
-     var minHeapBytes: Long
+     var minHeapBytes: ULong
         get() = getMinHeapBytes()
-        set(value) {
-            require(value >= 0) { "minHeapBytes must not be negative: $value" }
-            setMinHeapBytes(value)
-        }
+        set(value) = setMinHeapBytes(value)
 
     /**
      * New MM only.
      * The maximum value for [targetHeapBytes].
      * Only used if [autotune] is true. See [targetHeapBytes] for more details.
      *
-     * Default: [Long.MAX_VALUE]
-     *
-     * @throws [IllegalArgumentException] when value is negative.
+     * Default: [ULong.MAX_VALUE]
      */
-     var maxHeapBytes: Long
+     var maxHeapBytes: ULong
         get() = getMaxHeapBytes()
-        set(value) {
-            require(value >= 0) { "maxHeapBytes must not be negative: $value" }
-            setMaxHeapBytes(value)
-        }
+        set(value) = setMaxHeapBytes(value)
 
     /**
      * Detect cyclic references going via atomic references and return list of cycle-inducing objects

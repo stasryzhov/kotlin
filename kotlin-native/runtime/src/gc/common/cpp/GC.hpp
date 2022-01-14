@@ -64,6 +64,8 @@ public:
     void StopFinalizerThreadIfRunning() noexcept;
     bool FinalizersThreadIsRunning() noexcept;
 
+    void RestartGCSchedulerTimer() noexcept;
+
 private:
     KStdUniquePtr<Impl> impl_;
 };

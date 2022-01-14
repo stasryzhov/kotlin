@@ -364,7 +364,9 @@ extern "C" KLong Kotlin_native_internal_GC_getRegularGCIntervalMicroseconds(ObjH
 
 extern "C" void Kotlin_native_internal_GC_setRegularGCIntervalMicroseconds(ObjHeader*, KLong value) {
     RuntimeAssert(value >= 0, "Must be handled by the caller");
-    mm::GlobalData::Instance().gc().gcSchedulerConfig().regularGcIntervalMicroseconds = value;
+    auto& gc = mm::GlobalData::Instance().gc();
+    gc.gcSchedulerConfig().regularGcIntervalMicroseconds = value;
+    gc.RestartGCSchedulerTimer();
 }
 
 extern "C" KLong Kotlin_native_internal_GC_getTargetHeapBytes(ObjHeader*) {
