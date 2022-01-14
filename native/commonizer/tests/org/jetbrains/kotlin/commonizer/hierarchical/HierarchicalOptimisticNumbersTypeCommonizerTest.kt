@@ -798,7 +798,7 @@ class HierarchicalOptimisticNumbersTypeCommonizerTest : AbstractInlineSourcesCom
     }
 }
 
-private fun ParametersBuilder.registerFakeStdlibDependency(vararg outputTarget: String) {
+internal fun ParametersBuilder.registerFakeStdlibDependency(vararg outputTarget: String) {
     val allTargets = outputTarget.map { parseCommonizerTarget(it) }.withAllLeaves()
     registerDependency(*allTargets.toTypedArray()) {
         unsignedIntegers()

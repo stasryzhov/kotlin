@@ -30,7 +30,8 @@ class HierarchicalPlatformIntegerCommonizerTest : AbstractInlineSourcesCommoniza
 
         result.assertCommonized(
             "(a, b)", """
-            expect class X : Number
+            @UnsafeNumber(["a: kotlin.Short", "b: kotlin.Int"])
+            typealias X = Short
         """.trimIndent()
         )
     }
@@ -57,27 +58,4 @@ class HierarchicalPlatformIntegerCommonizerTest : AbstractInlineSourcesCommoniza
         """.trimIndent()
         )
     }
-}
-
-private fun AbstractInlineSourcesCommonizationTest.ParametersBuilder.registerFakeStdlibDependency(vararg outputTarget: String) {
-    val allTargets = outputTarget.map { parseCommonizerTarget(it) }.withAllLeaves()
-    registerDependency(*allTargets.toTypedArray()) {
-        unsignedIntegers()
-        unsingedVarIntegers()
-        singedVarIntegers()
-        platformIntegers()
-    }
-}
-
-private fun InlineSourceBuilder.ModuleBuilder.platformIntegers() {
-    source(
-        """
-        package kotlin
-        
-        expect class PlatformInt
-        expect class PlatformUInt
-        expect class PlatformIntVarOf
-        expect class PlatformUIntVarOf
-        """.trimIndent(), "PlatformInt.kt"
-    )
 }

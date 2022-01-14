@@ -41,7 +41,7 @@ class TypeAliasCommonizer(
             underlyingType = underlyingType,
             expandedType = underlyingType.expandedType(),
             annotations = listOfNotNull(
-                createUnsafeNumberAnnotationIfNecessary(classifiers.classifierIndices.targets, values, settings = settings)
+                createUnsafeNumberAnnotationIfNecessary(classifiers.classifierIndices.targets, values)
             )
         )
     }
@@ -50,11 +50,7 @@ class TypeAliasCommonizer(
 private fun createUnsafeNumberAnnotationIfNecessary(
     targets: List<CommonizerTarget>,
     values: List<CirTypeAlias>,
-    settings: CommonizerSettings,
 ): CirAnnotation? {
-    if (settings.getSetting(PlatformIntegers))
-        return null
-
     val expandedTypes = values.map { it.expandedType.classifierId }
 
     // All typealias have to be potentially substitutable (aka have to be some kind of number type)
