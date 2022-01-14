@@ -229,7 +229,7 @@ private val defaultArgumentStubPhase = makeIrFilePhase(
 )
 
 private val defaultArgumentCleanerPhase = makeIrFilePhase(
-    { context: JvmBackendContext -> DefaultParameterCleaner(context, replaceDefaultValuesWithStubs = true) },
+    { context: JvmBackendContext -> DefaultParameterCleaner(context, replaceDefaultValuesWithStubs = false) },
     name = "DefaultParameterCleaner",
     description = "Replace default values arguments with stubs",
     prerequisite = setOf(defaultArgumentStubPhase)
@@ -392,7 +392,6 @@ private val functionInliningPhase = makeIrFilePhase<JvmBackendContext>(
 private val jvmFilePhases = listOf(
     typeAliasAnnotationMethodsPhase,
     stripTypeAliasDeclarationsPhase,
-    provisionalFunctionExpressionPhase,
 
     jvmOverloadsAnnotationPhase,
     mainMethodGenerationPhase,
@@ -408,7 +407,15 @@ private val jvmFilePhases = listOf(
     lateinitDeclarationLoweringPhase,
     lateinitUsageLoweringPhase,
 
-//    functionInliningPhase, // not working because it will copy local class before local lowering => name clash
+    localClassesInInlineLambdasPhase,
+    localClassesInInlineFunctionsPhase,
+    localClassesExtractionFromInlineFunctionsPhase,
+
+    functionInliningPhase, // not working because it will copy local class before local lowering => name clash
+    provisionalFunctionExpressionPhase,
+    inventNamesForLocalClassesPhase2,
+
+
     inlineCallableReferenceToLambdaPhase,
     functionReferencePhase,
     suspendLambdaPhase,
@@ -441,18 +448,18 @@ private val jvmFilePhases = listOf(
     returnableBlocksPhase,
     sharedVariablesPhase,
 
-//    localClassesInInlineLambdasPhase,
-//    localClassesInInlineFunctionsPhase,
-//    localClassesExtractionFromInlineFunctionsPhase,
 
-    functionInliningPhase,
-    returnableBlocksPhase2,
-    functionReferencePhase2,
+//    functionInliningPhase,
+//    returnableBlocksPhase2,
+//    provisionalFunctionExpressionPhase,
+    //functionReferencePhase2,
 
     localDeclarationsPhase,
     makePatchParentsPhase(2),
 
     jvmLocalClassExtractionPhase,
+
+
 
 //    inlineFunctionReferenceLowering,
 

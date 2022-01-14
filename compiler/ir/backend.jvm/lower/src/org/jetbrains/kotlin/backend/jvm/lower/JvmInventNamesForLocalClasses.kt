@@ -24,6 +24,15 @@ val inventNamesForLocalClassesPhase = makeIrFilePhase<JvmBackendContext>(
     prerequisite = setOf(mainMethodGenerationPhase)
 )
 
+val inventNamesForLocalClassesPhase2 = makeIrFilePhase<JvmBackendContext>(
+//val inventNamesForLocalClassesPhase = makeIrModulePhase<JvmBackendContext>(
+    { context -> JvmInventNamesForLocalClasses(context) },
+    name = "InventNamesForLocalClasses2",
+    description = "Invent names for local classes and anonymous objects",
+    // MainMethodGeneration introduces lambdas, needing names for their local classes.
+    prerequisite = setOf(mainMethodGenerationPhase)
+)
+
 class JvmInventNamesForLocalClasses(private val context: JvmBackendContext) : InventNamesForLocalClasses(allowTopLevelCallables = true) {
     override fun computeTopLevelClassName(clazz: IrClass): String {
         val file = clazz.parent as? IrFile
@@ -41,6 +50,7 @@ class JvmInventNamesForLocalClasses(private val context: JvmBackendContext) : In
 
     override fun sanitizeNameIfNeeded(name: String): String {
         return JvmCodegenUtil.sanitizeNameIfNeeded(name, context.state.languageVersionSettings)
+            .replace("<", "\$_").replace(">", "\$_")
     }
 
     override fun putLocalClassName(declaration: IrAttributeContainer, localClassName: String) {

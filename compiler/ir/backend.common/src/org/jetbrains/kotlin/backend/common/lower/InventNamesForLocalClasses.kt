@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.ir.util.isAnonymousObject
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.NameUtils
+import org.jetbrains.kotlin.name.SpecialNames
 import org.jetbrains.kotlin.util.capitalizeDecapitalize.toUpperCaseAsciiOnly
 
 abstract class InventNamesForLocalClasses(private val allowTopLevelCallables: Boolean) : FileLoweringPass {
@@ -185,7 +186,12 @@ abstract class InventNamesForLocalClasses(private val allowTopLevelCallables: Bo
                 """.trimIndent()
             }
 
-            val simpleName = if (sourceName == null || sourceName.isSpecial) {
+//            fun Name.isLocalSpecial(): Boolean {
+//                val str = asString()
+//                return str.startsWith(SpecialNames.NO_NAME_PROVIDED.asString()) || str.startsWith(SpecialNames.ANONYMOUS_STRING)
+//            }
+
+            val simpleName = if (sourceName == null || sourceName.isSpecial /*|| sourceName.isLocalSpecial()*/) {
                 val count = (anonymousClassesCount[enclosingName.toUpperCaseAsciiOnly()] ?: 0) + 1
                 anonymousClassesCount[enclosingName.toUpperCaseAsciiOnly()] = count
                 count.toString()
