@@ -108,11 +108,10 @@ abstract class BuildMetricsReporterService : BuildService<BuildMetricsReporterSe
             val rootProject = project.gradle.rootProject
             val reportingSettings = reportingSettings(rootProject)
 
-            if (reportingSettings.buildReportMode != BuildReportMode.NONE && reportingSettings.buildReportDir != null) {
+            if (reportingSettings.buildReportOutputs.contains(BuildReportType.FILE)) {
                 buildDataProcessors.add(
                     PlainTextBuildReportWriterDataProcessor(
-                        reportingSettings,
-                        reportingSettings.buildReportDir,
+                        reportingSettings.fileReportSettings ?: throw IllegalStateException("Can't configure file report"),
                         rootProject.name
                     )
                 )

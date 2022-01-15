@@ -18,6 +18,9 @@ import org.jetbrains.kotlin.gradle.plugin.stat.ReportStatistics
 import org.jetbrains.kotlin.gradle.plugin.statistics.KotlinBuildStatListener
 import org.jetbrains.kotlin.gradle.plugin.statistics.ReportStatisticsToBuildScan
 import org.jetbrains.kotlin.gradle.plugin.statistics.ReportStatisticsToElasticSearch
+import org.jetbrains.kotlin.gradle.report.BuildReportType
+import org.jetbrains.kotlin.gradle.report.ReportingSettings
+import org.jetbrains.kotlin.gradle.report.reportingSettings
 import java.io.File
 
 internal abstract class KotlinGradleBuildServices : BuildService<KotlinGradleBuildServices.Parameters>, AutoCloseable {
@@ -54,20 +57,35 @@ internal abstract class KotlinGradleBuildServices : BuildService<KotlinGradleBui
         ) { service ->
             service.parameters.rootDir = project.rootProject.rootDir
             service.parameters.buildDir = project.rootProject.buildDir
-            addListeners(project)
+
+            val reportingSettings = reportingSettings(project.rootProject)
+            addListeners(project, reportingSettings)
         }
 
-        fun addListeners(project: Project) {
+        fun addListeners(project: Project, reportingSettings: ReportingSettings) {
+            val listeners = project.rootProject.objects.listProperty(ReportStatistics::class.java)
+                .value(listOf<ReportStatistics>())
+
+            if (reportingSettings.buildReportOutputs.contains(BuildReportType.HTTP)) {
+                listeners.add(
+                    ReportStatisticsToElasticSearch(
+                        reportingSettings.httpReportSettings ?: throw IllegalStateException("Can't configure http report")
+                    )
+                )
+            }
+
             project.rootProject.extensions.findByName("buildScan")
                 ?.also {
-                    val listeners = project.rootProject.objects.listProperty(ReportStatistics::class.java)
-                        .value(listOf<ReportStatistics>(ReportStatisticsToElasticSearch))
-                    listeners.add(ReportStatisticsToBuildScan(it as BuildScanExtension))
-                    val statListener = KotlinBuildStatListener(project.rootProject.name, listeners.get())
-                    val listenerRegistryHolder = BuildEventsListenerRegistryHolder.getInstance(project)
-
-                    listenerRegistryHolder.listenerRegistry.onTaskCompletion(project.provider { statListener })
+                    if (reportingSettings.buildReportOutputs.contains(BuildReportType.BUILD_SCAN)) {
+                        listeners.add(ReportStatisticsToBuildScan(it as BuildScanExtension))
+                    }
                 }
+
+            if (listeners.get().isNotEmpty()) {
+                val listenerRegistryHolder = BuildEventsListenerRegistryHolder.getInstance(project)
+                val statListener = KotlinBuildStatListener(project.rootProject.name, listeners.get())
+                listenerRegistryHolder.listenerRegistry.onTaskCompletion(project.provider { statListener })
+            }
         }
 
         private val multipleProjectsHolder = KotlinPluginInMultipleProjectsHolder(

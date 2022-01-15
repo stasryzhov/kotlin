@@ -93,8 +93,27 @@ internal class PropertiesProvider private constructor(private val project: Proje
     val singleBuildMetricsFile: File?
         get() = property("kotlin.internal.single.build.metrics.file")?.let { File(it) }
 
+    @Deprecated(message = "Please use kotlin.build.report.output instead ")
     val buildReportEnabled: Boolean
         get() = booleanProperty("kotlin.build.report.enable") ?: false
+
+    val buildReportOutputs: List<String>
+        get() = property("kotlin.build.report.output")?.split(",") ?: emptyList()
+
+    val buildReportLabel: String?
+        get() = property("kotlin.build.report.label")
+
+    val buildReportFileOutputDir: File?
+        get() = property("kotlin.build.report.file.output_dir")?.let { File(it) }
+
+    val buildReportHttpUrl: String?
+        get() = property("kotlin.build.report.http.url")
+
+    val buildReportHttpUser: String?
+        get() = property("kotlin.build.report.http.user")
+
+    val buildReportHttpPassword: String?
+        get() = property("kotlin.build.report.http.password")
 
     val buildReportMetrics: Boolean
         get() = booleanProperty("kotlin.build.report.metrics") ?: false
@@ -102,6 +121,7 @@ internal class PropertiesProvider private constructor(private val project: Proje
     val buildReportVerbose: Boolean
         get() = booleanProperty("kotlin.build.report.verbose") ?: false
 
+    @Deprecated("Please use \"kotlin.build.report.file.output_dir\" property instead")
     val buildReportDir: File?
         get() = property("kotlin.build.report.dir")?.let { File(it) }
 
