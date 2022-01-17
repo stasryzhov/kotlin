@@ -71,7 +71,7 @@ fun printElements(generationPath: File, model: Model) = sequence {
                 }.build())
             }
 
-            if (element.visitorParent != null) {
+            if (element.visitorParent != null && (element.isLeaf || element.accept)) {
                 addFunction(FunSpec.builder("accept").apply {
                     addModifiers(KModifier.OVERRIDE)
                     val r = TypeVariableName("R")

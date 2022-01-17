@@ -29,6 +29,7 @@ class ElementConfig(
     var visitorName: String? = null
     var visitorParent: ElementConfig? = null
     var visitorParam: String? = null
+    var accept = false // By default, accept is generated only for leaves.
     var transform = false
     var transformByChildren = false
     var transformerReturnType: ElementConfig? = null
