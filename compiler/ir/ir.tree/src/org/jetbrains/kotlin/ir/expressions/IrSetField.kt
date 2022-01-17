@@ -15,12 +15,12 @@ abstract class IrSetField : IrFieldAccessExpression() {
         visitor.visitSetField(this, data)
 
     override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        super<IrFieldAccessExpression>.acceptChildren(visitor, data)
+        receiver?.accept(visitor, data)
         value.accept(visitor, data)
     }
 
     override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        super<IrFieldAccessExpression>.transformChildren(transformer, data)
+        receiver = receiver?.transform(transformer, data)
         value = value.transform(transformer, data)
     }
 }

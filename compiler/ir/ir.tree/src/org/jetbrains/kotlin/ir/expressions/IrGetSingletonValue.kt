@@ -5,9 +5,4 @@
 
 package org.jetbrains.kotlin.ir.expressions
 
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-
-abstract class IrGetSingletonValue : IrDeclarationReference() {
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-        visitor.visitSingletonReference(this, data)
-}
+abstract class IrGetSingletonValue : IrDeclarationReference()

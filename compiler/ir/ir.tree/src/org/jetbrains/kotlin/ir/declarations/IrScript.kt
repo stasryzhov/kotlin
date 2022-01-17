@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
 import org.jetbrains.kotlin.ir.symbols.IrScriptSymbol
 import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.util.transformInPlace
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 
@@ -47,7 +48,7 @@ abstract class IrScript :
         visitor.visitScript(this, data)
 
     override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        super<IrStatementContainer>.acceptChildren(visitor, data)
+        statements.forEach { it.accept(visitor, data) }
         thisReceiver.accept(visitor, data)
         explicitCallParameters.forEach { it.accept(visitor, data) }
         implicitReceiversParameters.forEach { it.accept(visitor, data) }
@@ -56,7 +57,7 @@ abstract class IrScript :
     }
 
     override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        super<IrStatementContainer>.transformChildren(transformer, data)
+        statements.transformInPlace(transformer, data)
         thisReceiver = thisReceiver.transform(transformer, data)
         explicitCallParameters = explicitCallParameters.map { it.transform(transformer, data) }
         implicitReceiversParameters = implicitReceiversParameters.map { it.transform(transformer, data) }
