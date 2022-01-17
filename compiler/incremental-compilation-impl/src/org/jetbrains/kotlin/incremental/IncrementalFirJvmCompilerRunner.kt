@@ -222,19 +222,15 @@ class IncrementalFirJvmCompilerRunner(
                         return null
                     }
 
-                    if (!isIncremental) return analysisResults
-
                     val newDirtySources =
-                        collectNewDirtySources(analysisResults, targetId, configuration, caches, allCompiledSources, reporter).also {
-                            if (it.isNotEmpty()) {
-                                caches.platformCache.markDirty(it)
-                                caches.inputsCache.removeOutputForSourceFiles(it)
-                            }
-                        }
+                        collectNewDirtySources(analysisResults, targetId, configuration, caches, allCompiledSources, reporter)
 
-                    if (newDirtySources.isEmpty()) return analysisResults
+                    if (!isIncremental || newDirtySources.isEmpty()) return analysisResults
 
+                    caches.platformCache.markDirty(newDirtySources)
+                    caches.inputsCache.removeOutputForSourceFiles(newDirtySources)
                     dirtySources.addAll(newDirtySources)
+                    projectEnvironment.localFileSystem.refresh(false)
                 }
             }
 
