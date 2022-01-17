@@ -105,6 +105,15 @@ open class JvmStringTable(nameResolver: JvmNameResolver? = null) : StringTable {
         JvmNameResolverBase(
             strings.toTypedArray(),
             localNames,
-            records.map { it.build() }
+            ArrayList<Record>().apply {
+                this.ensureCapacity(records.size)
+                for (recordBuilder in records) {
+                    val record = recordBuilder.build()
+                    repeat(record.range) {
+                        this.add(record)
+                    }
+                }
+                this.trimToSize()
+            }
         )
 }
