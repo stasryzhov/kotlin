@@ -352,6 +352,11 @@ public class IncrementalJvmOldBackendCompilerRunnerTestGenerated extends Abstrac
             runTest("jps/jps-plugin/testData/incremental/pureKotlin/localClassChanged/");
         }
 
+        @TestMetadata("moduleMappingPartiallyChanged")
+        public void testModuleMappingPartiallyChanged() throws Exception {
+            runTest("jps/jps-plugin/testData/incremental/pureKotlin/moduleMappingPartiallyChanged/");
+        }
+
         @TestMetadata("moveClass")
         public void testMoveClass() throws Exception {
             runTest("jps/jps-plugin/testData/incremental/pureKotlin/moveClass/");

@@ -118,10 +118,11 @@ internal fun collectNewDirtySources(
                 withMetadataSerializer(metadata, data) { serializer ->
                     klass.acceptChildren(this, data)
                     serializer.serialize(metadata)?.let { (classProto, nameTable) ->
-                        caches.platformCache.collectClassChangesByMetadata(
-                            JvmClassName.byClassId(klass.classId),
+                        caches.platformCache.saveFrontendClassToCache(
+                            klass.classId,
                             classProto as ProtoBuf.Class,
                             nameTable,
+                            null, // TODO: !!
                             changesCollector
                         )
                     }
