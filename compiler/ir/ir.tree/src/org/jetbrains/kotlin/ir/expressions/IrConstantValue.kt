@@ -5,12 +5,7 @@
 
 package org.jetbrains.kotlin.ir.expressions
 
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-
 abstract class IrConstantValue : IrExpression() {
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-        visitor.visitConstantValue(this, data)
-
     abstract fun contentEquals(other: IrConstantValue): Boolean
     abstract fun contentHashCode(): Int
 }
