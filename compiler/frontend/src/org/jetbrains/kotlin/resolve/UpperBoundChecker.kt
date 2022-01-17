@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.resolve
 
-import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.container.DefaultImplementation
 import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
@@ -81,10 +80,7 @@ open class UpperBoundChecker {
                 type, trace, typeReference,
                 // The errors have been reported previously if ktTypeArguments.size accidentally was equal to the amount of arguments
                 // in the expanded type
-                reportWarning = ktTypeArguments.size != arguments.size &&
-                        !languageVersionSettings.supportsFeature(
-                            LanguageFeature.ReportMissingUpperBoundsViolatedErrorOnAbbreviationAtSupertypes
-                        )
+                reportWarning = false
             )
             return
         }
