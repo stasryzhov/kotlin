@@ -16,40 +16,51 @@
 
 namespace kotlin {
 
+template <typename Clock, typename Duration = typename Clock::duration>
 class RepeatedTimer : private Pinned {
 public:
-    template <typename Rep, typename Period, typename F>
-    RepeatedTimer(std::chrono::duration<Rep, Period> interval, F f) noexcept :
-        thread_([this, interval, f]() noexcept { Run(interval, f); }) {}
+    template <typename F>
+    RepeatedTimer(std::chrono::time_point<Clock, Duration> at, F f) noexcept : at_(at), thread_([this, f]() noexcept { Run(f); }) {}
 
     ~RepeatedTimer() {
         {
             std::unique_lock lock(mutex_);
-            run_ = false;
+            shutdownRequested_ = true;
         }
         wait_.notify_all();
         thread_.join();
     }
 
+    void updateAt(std::chrono::time_point<Clock, Duration> at) noexcept {
+        {
+            std::unique_lock lock(mutex_);
+            at_ = at;
+        }
+        wait_.notify_all();
+    }
+
 private:
-    template <typename Rep, typename Period, typename F>
-    void Run(std::chrono::duration<Rep, Period> interval, F f) noexcept {
+    template <typename F>
+    void Run(F f) noexcept {
         while (true) {
             std::unique_lock lock(mutex_);
-            if (wait_.wait_for(lock, interval, [this]() noexcept { return !run_; })) {
-                RuntimeAssert(!run_, "Can only happen once run_ is set to false");
-                return;
+            auto at = at_;
+            if (wait_.wait_until(lock, at, [this, at]() noexcept { return shutdownRequested_ || at != at_; })) {
+                if (shutdownRequested_) {
+                    return;
+                }
+                // Otherwise at_ must've changed, get it and restart waiting.
+                continue;
             }
-            RuntimeAssert(run_, "Can only happen if we timed out on waiting and run_ is still true");
-            auto newInterval = f();
-            // The next waiting will use the new interval.
-            interval = std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(newInterval);
+            RuntimeAssert(!shutdownRequested_, "Can only happen if we timed out on waiting and run_ is still true");
+            at_ = std::chrono::time_point_cast<Duration>(f());
         }
     }
 
     std::mutex mutex_;
     std::condition_variable wait_;
-    bool run_ = true;
+    bool shutdownRequested_ = false;
+    std::chrono::time_point<Clock, Duration> at_;
     std::thread thread_;
 };
 

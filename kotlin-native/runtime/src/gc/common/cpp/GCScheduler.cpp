@@ -89,6 +89,10 @@ class GCEmptySchedulerData : public gc::GCSchedulerData {
     void UpdateAliveSetBytes(size_t bytes) noexcept override {}
 };
 
+auto nextGCAt(const gc::GCSchedulerConfig& config) {
+    return std::chrono::steady_clock::now() + config.regularGcInterval();
+}
+
 class GCSchedulerDataWithTimer : public gc::GCSchedulerData {
 public:
     GCSchedulerDataWithTimer(
@@ -99,11 +103,11 @@ public:
         heapGrowthController_(config),
         regularIntervalPacer_(config, currentTimeProvider),
         scheduleGC_(std::move(scheduleGC)),
-        timer_(config_.regularGcInterval(), [this]() {
+        timer_(nextGCAt(config_), [this]() {
             if (regularIntervalPacer_.NeedsGC()) {
                 scheduleGC_();
             }
-            return config_.regularGcInterval();
+            return nextGCAt(config_);
         }) {}
 
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {
@@ -125,7 +129,7 @@ private:
     HeapGrowthController heapGrowthController_;
     RegularIntervalPacer regularIntervalPacer_;
     std::function<void()> scheduleGC_;
-    RepeatedTimer timer_;
+    RepeatedTimer<std::chrono::steady_clock> timer_;
 };
 
 class GCSchedulerDataOnSafepoints : public gc::GCSchedulerData {
