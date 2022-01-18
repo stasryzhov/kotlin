@@ -34,6 +34,8 @@ class ElementConfig(
     var transformByChildren = false
     var transformerReturnType: ElementConfig? = null
 
+    var ownsChildren = true // If false, acceptChildren/transformChildren will NOT be generated.
+
     var typeKind: TypeKind? = null
 
     var generationCallback: (TypeSpec.Builder.() -> Unit)? = null

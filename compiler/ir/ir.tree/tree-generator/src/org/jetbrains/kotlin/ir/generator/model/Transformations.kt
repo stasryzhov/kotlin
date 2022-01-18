@@ -231,47 +231,27 @@ private fun processFieldOverrides(elements: List<Element>) {
 
 private fun addWalkableChildren(elements: List<Element>) {
     for (element in elements) {
-        val walkableChildren = element.fields.filter { it.isChild }.associateBy { it.name }.toMutableMap()
+        val walkableChildren = mutableMapOf<String, Field>()
 
         fun visitParents(visited: Element) {
             for (parent in visited.elementParents) {
-                for (field in parent.element.fields) {
-                    if (field.isChild) {
-                        walkableChildren.remove(field.name)
+                if (!parent.element.ownsChildren) {
+                    for (field in parent.element.fields) {
+                        if (field.isChild) {
+                            walkableChildren[field.name] = field
+                        }
                     }
-                }
 
-                visitParents(parent.element)
+                    visitParents(parent.element)
+                }
             }
         }
 
         visitParents(element)
+
+        element.fields.filter { it.isChild }.associateByTo(walkableChildren) { it.name }
+
         element.walkableChildren = walkableChildren.values.toList()
-    }
-
-    for (element in iterateElementsParentFirst(elements)) {
-        fun visitParentsForAccept(of: Element) {
-            for (parent in of.elementParents) {
-                if (parent.element.walkableChildren.isNotEmpty()) {
-                    element.acceptChildrenSupers.add(parent.element)
-                } else {
-                    visitParentsForAccept(parent.element)
-                }
-            }
-        }
-
-        fun visitParentsForTransform(of: Element) {
-            for (parent in of.elementParents) {
-                if (parent.element.transformableChildren.isNotEmpty()) {
-                    element.transformChildrenSupers.add(parent.element)
-                } else {
-                    visitParentsForTransform(parent.element)
-                }
-            }
-        }
-
-        visitParentsForAccept(element)
-        visitParentsForTransform(element)
     }
 }
 

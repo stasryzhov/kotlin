@@ -30,8 +30,6 @@ class Element(
     var isLeaf = false
     var walkableChildren: List<Field> = emptyList()
     val transformableChildren get() = walkableChildren.filter { it.transformable }
-    val acceptChildrenSupers = mutableListOf<Element>()
-    val transformChildrenSupers = mutableListOf<Element>()
 
     val nameInVisitor = config?.visitorName ?: name
     val visitFunName = "visit" + nameInVisitor.replaceFirstChar(Char::uppercaseChar)
@@ -39,6 +37,7 @@ class Element(
     val accept = config?.accept ?: false
     val transform = config?.transform ?: false
     val transformByChildren = config?.transformByChildren ?: false
+    val ownsChildren = config?.ownsChildren ?: false
 
     val generationCallback = config?.generationCallback
     val suppressPrint = config?.suppressPrint ?: false

@@ -98,17 +98,13 @@ fun printElements(generationPath: File, model: Model) = sequence {
                 }.build())
             }
 
-            if (element.walkableChildren.isNotEmpty() || element.acceptChildrenSupers.size > 1) {
+            if (element.ownsChildren && element.walkableChildren.isNotEmpty()) {
                 addFunction(FunSpec.builder("acceptChildren").apply {
                     addModifiers(KModifier.OVERRIDE)
                     val d = TypeVariableName("D")
                     addTypeVariable(d)
                     addParameter("visitor", elementVisitorType.toPoet().tryParameterizedBy(UNIT, d))
                     addParameter("data", d)
-
-                    for (ancestor in element.acceptChildrenSupers) {
-                        addStatement("super<%T>.acceptChildren(visitor, data)", ancestor.toPoet())
-                    }
 
                     for (child in element.walkableChildren) {
                         addStatement(buildString {
@@ -123,17 +119,13 @@ fun printElements(generationPath: File, model: Model) = sequence {
                 }.build())
             }
 
-            if (element.transformableChildren.isNotEmpty() || element.transformChildrenSupers.size > 1) {
+            if (element.ownsChildren && element.transformableChildren.isNotEmpty()) {
                 addFunction(FunSpec.builder("transformChildren").apply {
                     addModifiers(KModifier.OVERRIDE)
                     val d = TypeVariableName("D")
                     addTypeVariable(d)
                     addParameter("transformer", elementTransformerType.toPoet().tryParameterizedBy(d))
                     addParameter("data", d)
-
-                    for (ancestor in element.transformChildrenSupers) {
-                        addStatement("super<%T>.transformChildren(transformer, data)", ancestor.toPoet())
-                    }
 
                     for (child in element.transformableChildren) {
                         val args = mutableListOf<Any>()
