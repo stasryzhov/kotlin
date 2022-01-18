@@ -56,10 +56,7 @@ class MutableVariableWithConstraints private constructor(
         val isLowerAndFlexibleTypeWithDefNotNullLowerBound = constraint.isLowerAndFlexibleTypeWithDefNotNullLowerBound()
 
         for (previousConstraint in constraints) {
-            if (previousConstraint.typeHashCode == constraint.typeHashCode
-                && previousConstraint.type == constraint.type
-                && previousConstraint.isNullabilityConstraint == constraint.isNullabilityConstraint
-            ) {
+            if (previousConstraint.matches(constraint)) {
                 val noNewCustomAttributes = with(context) {
                     val previousType = previousConstraint.type
                     val type = constraint.type
@@ -85,6 +82,7 @@ class MutableVariableWithConstraints private constructor(
                         Constraint(
                             ConstraintKind.EQUALITY,
                             constraint.type,
+                            constraint.originalTypeForFlexibleVariable,
                             constraint.position.takeIf { it.from !is DeclaredUpperBoundConstraintPosition<*> }
                                 ?: previousConstraint.position,
                             constraint.typeHashCode,

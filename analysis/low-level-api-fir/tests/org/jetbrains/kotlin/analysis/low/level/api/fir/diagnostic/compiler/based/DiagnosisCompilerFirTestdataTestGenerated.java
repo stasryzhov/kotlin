@@ -5648,6 +5648,12 @@ public class DiagnosisCompilerFirTestdataTestGenerated extends AbstractDiagnosis
             }
 
             @Test
+            @TestMetadata("assertThatOnMap.kt")
+            public void testAssertThatOnMap() throws Exception {
+                runTest("compiler/fir/analysis-tests/testData/resolveWithStdlib/problems/assertThatOnMap.kt");
+            }
+
+            @Test
             @TestMetadata("capturedTypeInEquality.kt")
             public void testCapturedTypeInEquality() throws Exception {
                 runTest("compiler/fir/analysis-tests/testData/resolveWithStdlib/problems/capturedTypeInEquality.kt");

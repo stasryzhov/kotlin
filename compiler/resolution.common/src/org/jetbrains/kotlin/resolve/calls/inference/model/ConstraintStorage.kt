@@ -83,12 +83,21 @@ enum class ConstraintKind {
 class Constraint(
     val kind: ConstraintKind,
     val type: KotlinTypeMarker, // flexible types here is allowed
+    val originalTypeForFlexibleVariable: KotlinTypeMarker?,
     val position: IncorporationConstraintPosition,
     val typeHashCode: Int = type.hashCode(),
     val derivedFrom: Set<TypeVariableMarker>,
     val isNullabilityConstraint: Boolean,
     val inputTypePositionBeforeIncorporation: OnlyInputTypeConstraintPosition? = null
 ) {
+    fun matches(other: Constraint): Boolean {
+        return when {
+            isNullabilityConstraint != other.isNullabilityConstraint -> false
+            originalTypeForFlexibleVariable != null && originalTypeForFlexibleVariable == other.originalTypeForFlexibleVariable -> true
+            else -> typeHashCode == other.typeHashCode && type == other.type
+        }
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other?.javaClass != javaClass) return false
@@ -155,4 +164,4 @@ fun checkConstraint(
 }
 
 fun Constraint.replaceType(newType: KotlinTypeMarker) =
-    Constraint(kind, newType, position, typeHashCode, derivedFrom, isNullabilityConstraint, inputTypePositionBeforeIncorporation)
+    Constraint(kind, newType, null, position, typeHashCode, derivedFrom, isNullabilityConstraint, inputTypePositionBeforeIncorporation)

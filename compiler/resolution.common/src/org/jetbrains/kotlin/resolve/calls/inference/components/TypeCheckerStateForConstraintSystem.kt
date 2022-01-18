@@ -25,11 +25,16 @@ abstract class TypeCheckerStateForConstraintSystem(
     abstract fun isMyTypeVariable(type: SimpleTypeMarker): Boolean
 
     // super and sub type isSingleClassifierType
-    abstract fun addUpperConstraint(typeVariable: TypeConstructorMarker, superType: KotlinTypeMarker)
+    abstract fun addUpperConstraint(
+        typeVariable: TypeConstructorMarker,
+        superType: KotlinTypeMarker,
+        originalTypeForFlexibleTypeMarker: KotlinTypeMarker?
+    )
 
     abstract fun addLowerConstraint(
         typeVariable: TypeConstructorMarker,
         subType: KotlinTypeMarker,
+        originalTypeForFlexibleTypeMarker: KotlinTypeMarker?,
         isFromNullabilityConstraint: Boolean = false
     )
 
@@ -153,7 +158,7 @@ abstract class TypeCheckerStateForConstraintSystem(
                 if (isMyTypeVariable(type)) {
                     simplifyLowerConstraint(type, superType)
                     if (isMyTypeVariable(superType.asSimpleType() ?: return null)) {
-                        addLowerConstraint(superType.typeConstructor(), nullableAnyType())
+                        addLowerConstraint(superType.typeConstructor(), nullableAnyType(), null)
                     }
                 }
                 return null
@@ -207,11 +212,11 @@ abstract class TypeCheckerStateForConstraintSystem(
      * => (Foo..Bar) <: T! -- (Foo!! .. Bar) <: T
      */
     private fun simplifyLowerConstraint(
-        typeVariable: KotlinTypeMarker,
+        typeVariableType: KotlinTypeMarker,
         subType: KotlinTypeMarker,
         isFromNullabilityConstraint: Boolean = false
     ): Boolean = with(extensionTypeContext) {
-        val lowerConstraint = when (typeVariable) {
+        val (lowerConstraintType, originalType) = when (typeVariableType) {
             is SimpleTypeMarker ->
                 /*
                  * Foo <: T -- Foo <: T
@@ -224,8 +229,8 @@ abstract class TypeCheckerStateForConstraintSystem(
                  *          fun <T> foo(x: T?) {}
                  *          fun <K> main(z: K) { foo(z) }
                  */
-                if (typeVariable.isMarkedNullable()) {
-                    val typeVariableTypeConstructor = typeVariable.typeConstructor()
+                if (typeVariableType.isMarkedNullable()) {
+                    val typeVariableTypeConstructor = typeVariableType.typeConstructor()
                     val subTypeConstructor = subType.typeConstructor()
                     val needToMakeDefNotNull = subTypeConstructor.isTypeVariable() ||
                             typeVariableTypeConstructor !is TypeVariableTypeConstructorMarker ||
@@ -240,20 +245,24 @@ abstract class TypeCheckerStateForConstraintSystem(
                             subType.withNullability(false)
                         }
                     }
-                    if (isInferenceCompatibilityEnabled && resultType is CapturedTypeMarker) resultType.withNotNullProjection() else resultType
-                } else subType
+                    if (isInferenceCompatibilityEnabled && resultType is CapturedTypeMarker) {
+                        resultType.withNotNullProjection()
+                    } else {
+                        resultType
+                    } to null
+                } else subType to null
 
             is FlexibleTypeMarker -> {
-                assertFlexibleTypeVariable(typeVariable)
+                assertFlexibleTypeVariable(typeVariableType)
 
                 when (subType) {
                     is SimpleTypeMarker ->
                         // Foo <: T! -- (Foo!! .. Foo) <: T
-                        subType.createConstraintPartForLowerBoundAndFlexibleTypeVariable()
+                        subType.createConstraintPartForLowerBoundAndFlexibleTypeVariable() to subType
 
                     is FlexibleTypeMarker ->
                         // (Foo..Bar) <: T! -- (Foo!! .. Bar) <: T
-                        createFlexibleType(subType.lowerBound().makeSimpleTypeDefinitelyNotNullOrNotNull(), subType.upperBound())
+                        createFlexibleType(subType.lowerBound().makeSimpleTypeDefinitelyNotNullOrNotNull(), subType.upperBound()) to subType
 
                     else -> error("sealed")
                 }
@@ -261,7 +270,7 @@ abstract class TypeCheckerStateForConstraintSystem(
             else -> error("sealed")
         }
 
-        addLowerConstraint(typeVariable.typeConstructor(), lowerConstraint, isFromNullabilityConstraint)
+        addLowerConstraint(typeVariableType.typeConstructor(), lowerConstraintType, originalType, isFromNullabilityConstraint)
 
         return true
     }
@@ -279,13 +288,13 @@ abstract class TypeCheckerStateForConstraintSystem(
      */
     private fun simplifyUpperConstraint(typeVariable: KotlinTypeMarker, superType: KotlinTypeMarker): Boolean = with(extensionTypeContext) {
         val typeVariableLowerBound = typeVariable.lowerBoundIfFlexible()
-        val simplifiedSuperType = if (typeVariableLowerBound.isDefinitelyNotNullType()) {
-            superType.withNullability(true)
+        val (simplifiedSuperType, originalType) = if (typeVariableLowerBound.isDefinitelyNotNullType()) {
+            superType.withNullability(true) to null
         } else if (typeVariable.isFlexible() && superType is SimpleTypeMarker) {
-            createFlexibleType(superType, superType.withNullability(true))
-        } else superType
+            createFlexibleType(superType, superType.withNullability(true)) to superType
+        } else superType to null
 
-        addUpperConstraint(typeVariableLowerBound.typeConstructor(), simplifiedSuperType)
+        addUpperConstraint(typeVariableLowerBound.typeConstructor(), simplifiedSuperType, originalType)
 
         if (typeVariableLowerBound.isMarkedNullable()) {
             // here is important that superType is singleClassifierType

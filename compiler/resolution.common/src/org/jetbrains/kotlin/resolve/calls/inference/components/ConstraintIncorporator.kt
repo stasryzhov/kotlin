@@ -12,7 +12,6 @@ import org.jetbrains.kotlin.types.TypeApproximatorConfiguration
 import org.jetbrains.kotlin.types.model.*
 import org.jetbrains.kotlin.utils.SmartList
 import org.jetbrains.kotlin.utils.SmartSet
-import org.jetbrains.kotlin.utils.addIfNotNull
 import java.util.*
 
 // todo problem: intersection types in constrains: A <: Number, B <: Inv<A & Any> =>? B <: Inv<out Number & Any>
@@ -38,7 +37,7 @@ class ConstraintIncorporator(
             isFromDeclaredUpperBound: Boolean = false
         )
 
-        fun addNewIncorporatedConstraint(typeVariable: TypeVariableMarker, type: KotlinTypeMarker, constraintContext: ConstraintContext)
+        fun addNewIncorporatedConstraint(typeVariable: TypeVariableMarker, type: KotlinTypeMarker, constraintContext: ConstraintContext, originalTypeForFlexibleTypeMarker: KotlinTypeMarker?)
     }
 
     // \alpha is typeVariable, \beta -- other type variable registered in ConstraintStorage
@@ -231,7 +230,7 @@ class ConstraintIncorporator(
 
         val constraintContext = ConstraintContext(kind, derivedFrom, inputTypePosition, isNullabilityConstraint)
 
-        addNewIncorporatedConstraint(targetVariable, newConstraint, constraintContext)
+        addNewIncorporatedConstraint(targetVariable, newConstraint, constraintContext, null)
     }
 
     private fun Context.containsConstrainingTypeWithoutProjection(

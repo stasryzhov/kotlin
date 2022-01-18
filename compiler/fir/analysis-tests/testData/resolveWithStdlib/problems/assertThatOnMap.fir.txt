@@ -1,0 +1,4 @@
+FILE: test.kt
+    public final fun <S : R|kotlin/collections/Map<*, *>|> R|S?|.must(): R|kotlin/Unit| {
+        Q|Assertions|.R|/Assertions.assertThat|<R|ft<CapturedType(*), CapturedType(*)?>|, R|ft<kotlin/Any, kotlin/Any?>|>(this@R|/must|).R|/AbstractMapAssert.isNotNull|
+    }

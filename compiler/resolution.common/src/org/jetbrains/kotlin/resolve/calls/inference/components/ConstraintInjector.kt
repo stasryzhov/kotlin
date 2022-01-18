@@ -406,14 +406,19 @@ class ConstraintInjector(
         override fun isMyTypeVariable(type: SimpleTypeMarker): Boolean =
             c.allTypeVariables.containsKey(type.typeConstructor().unwrapStubTypeVariableConstructor())
 
-        override fun addUpperConstraint(typeVariable: TypeConstructorMarker, superType: KotlinTypeMarker) =
-            addConstraint(typeVariable, superType, UPPER)
+        override fun addUpperConstraint(
+            typeVariable: TypeConstructorMarker,
+            superType: KotlinTypeMarker,
+            originalTypeForFlexibleTypeMarker: KotlinTypeMarker?
+        ) =
+            addConstraint(typeVariable, superType, UPPER, originalTypeForFlexibleTypeMarker = originalTypeForFlexibleTypeMarker)
 
         override fun addLowerConstraint(
             typeVariable: TypeConstructorMarker,
             subType: KotlinTypeMarker,
+            originalTypeForFlexibleTypeMarker: KotlinTypeMarker?,
             isFromNullabilityConstraint: Boolean
-        ) = addConstraint(typeVariable, subType, LOWER, isFromNullabilityConstraint)
+        ) = addConstraint(typeVariable, subType, LOWER, isFromNullabilityConstraint, originalTypeForFlexibleTypeMarker)
 
         override fun addEqualityConstraint(typeVariable: TypeConstructorMarker, type: KotlinTypeMarker) =
             addConstraint(typeVariable, type, EQUALITY, false)
@@ -435,7 +440,8 @@ class ConstraintInjector(
             typeVariableConstructor: TypeConstructorMarker,
             type: KotlinTypeMarker,
             kind: ConstraintKind,
-            isFromNullabilityConstraint: Boolean = false
+            isFromNullabilityConstraint: Boolean = false,
+            originalTypeForFlexibleTypeMarker: KotlinTypeMarker? = null
         ) {
             val typeVariable = c.allTypeVariables[typeVariableConstructor.unwrapStubTypeVariableConstructor()]
                 ?: error("Should by type variableConstructor: $typeVariableConstructor. ${c.allTypeVariables.values}")
@@ -443,7 +449,8 @@ class ConstraintInjector(
             addNewIncorporatedConstraint(
                 typeVariable,
                 type,
-                ConstraintContext(kind, emptySet(), isNullabilityConstraint = isFromNullabilityConstraint)
+                ConstraintContext(kind, emptySet(), isNullabilityConstraint = isFromNullabilityConstraint),
+                originalTypeForFlexibleTypeMarker
             )
         }
 
@@ -473,7 +480,8 @@ class ConstraintInjector(
         override fun addNewIncorporatedConstraint(
             typeVariable: TypeVariableMarker,
             type: KotlinTypeMarker,
-            constraintContext: ConstraintContext
+            constraintContext: ConstraintContext,
+            originalTypeForFlexibleTypeMarker: KotlinTypeMarker?
         ) {
             val (kind, derivedFrom, inputTypePosition, isNullabilityConstraint) = constraintContext
 
@@ -515,7 +523,7 @@ class ConstraintInjector(
             val position = if (isIncorporatingConstraintFromDeclaredUpperBound) position.copy(isFromDeclaredUpperBound = true) else position
 
             val newConstraint = Constraint(
-                kind, targetType, position,
+                kind, targetType, originalTypeForFlexibleTypeMarker, position,
                 derivedFrom = derivedFrom,
                 isNullabilityConstraint = isNullabilityConstraint,
                 inputTypePositionBeforeIncorporation = inputTypePosition
