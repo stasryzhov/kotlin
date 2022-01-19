@@ -5,6 +5,9 @@
 
 package kotlin.native.internal
 
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
+
 /**
  *  ## Cycle garbage collector interface.
  *
@@ -151,7 +154,7 @@ object GC {
         get() = getRegularGCIntervalMicroseconds().microseconds
         set(value) {
             require(!value.isNegative()) { "regularGCInterval must not be negative: $value" }
-            setRegularGCIntervalMicroseconds(value.inWholeMicroseconds())
+            setRegularGCIntervalMicroseconds(value.inWholeMicroseconds)
         }
 
     /**

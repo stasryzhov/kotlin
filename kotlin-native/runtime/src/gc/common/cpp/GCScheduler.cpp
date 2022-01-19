@@ -5,6 +5,8 @@
 
 #include "GCScheduler.hpp"
 
+#include <cmath>
+
 #include "CompilerConstants.hpp"
 #include "GlobalData.hpp"
 #include "KAssert.h"
